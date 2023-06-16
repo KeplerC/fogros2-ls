@@ -7,6 +7,8 @@ pub mod network;
 pub mod structs;
 
 pub mod rib;
+pub mod api_server;
+
 // network processing
 pub mod connection_fib;
 pub mod db;
