@@ -1,3 +1,4 @@
+use crate::api_server::ROSTopicRequest;
 #[cfg(feature = "ros")]
 use crate::network::ros::{ros_publisher, ros_subscriber};
 #[cfg(feature = "ros")]
@@ -8,7 +9,7 @@ use crate::structs::{
 };
 
 
-use futures::channel::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::UnboundedReceiver;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tokio::select;
@@ -394,7 +395,7 @@ pub struct RosTopicStatus {
 }
 
 pub async fn ros_topic_manager(
-    topic_request_rx: UnboundedReceiver<ROSTopic>, 
+    mut topic_request_rx: UnboundedReceiver<ROSTopicRequest>, 
 ) {
     let mut waiting_rib_handles = vec![];
     // get ros information from config file
@@ -475,34 +476,27 @@ pub async fn ros_topic_manager(
     loop {
         select! {
             Some(payload) = topic_request_rx.recv() => {
-                
-            },
+                info!("ros topic manager get payload: {:?}", payload);
+                match payload.api_op.as_str() {
+                    "add" => {
 
-            _ = sleep(Duration::from_millis(5000)) => {
+                        let topic_name = payload.topic_name;
+                        let topic_type = payload.topic_type; 
+                        let action = payload.ros_op;
 
-                if !config.automatic_topic_discovery {
-                    info!("automatic topic discovery is disabled");
-                    continue;
-                } else {
-                    info!("automatic topic discovery is enabled. May be unstable!");
-                }
-
-                let current_topics = node.get_topic_names_and_types().unwrap();
-
-                // check if there is a new topic by comparing current topics with
-                // the bookkeeping topics
-                for topic in current_topics {
-                    if !topic_status.contains_key(&topic.0) {
-                        let topic_name = topic.0.clone();
-                        let topic_type = topic.1[0].clone(); // TODO: currently, broadcast only the first topic type
-                        let action = determine_topic_action(topic_name.clone()).await;
-
+                        // if topic_status.contains_key(&topic_name) {
+                        //     info!(
+                        //         "topic {} already exist {:?}",
+                        //         topic_name, topic_status
+                        //     );
+                        //     continue;
+                        // }
                         let topic_gdp_name = GDPName(get_gdp_name_from_topic(
                             &topic_name,
                             &topic_type,
                             &certificate,
                         ));
-                        info!("detected a new topic {:?} with action {:?}, topic gdpname {:?}", topic, action, topic_gdp_name);
+                        info!("detected a new topic {:?} with action {:?}, topic gdpname {:?}", topic_name, action, topic_gdp_name);
                         topic_status.insert(topic_name.clone(), RosTopicStatus { action: action.clone() });
 
                         match action.as_str() {
@@ -539,16 +533,12 @@ pub async fn ros_topic_manager(
                                 warn!("unknown action {}", action);
                             }
                         }
-
-                    } else {
-                        info!(
-                            "automatic new topic {} discovery: topics already exist {:?}",
-                            topic.0, topic_status
-                        );
+                    }, 
+                    _ => {
+                        info!("operation {} not handled!", payload.api_op);
                     }
                 }
-
-            }
+            },
         }
     }
 }
