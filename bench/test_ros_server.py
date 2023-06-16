@@ -1,4 +1,5 @@
 import requests 
+from time import sleep
 uri = "http://localhost:3000/add"
 
 ros_topic = {
@@ -11,6 +12,8 @@ ros_topic = {
 
 # Create a new resource
 response = requests.post(uri, json = ros_topic)
+print(response)
+sleep(2)
 
 ros_topic = {
     "api_op": "add",

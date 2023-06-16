@@ -16,7 +16,7 @@ use tokio::select;
 
 
 use crate::db::*;
-use futures::{StreamExt};
+use futures::{StreamExt, TryFutureExt};
 use redis_async::{client, resp::FromResp};
 use tokio::process::Command;
 use tokio::sync::mpsc::{self};
@@ -403,72 +403,13 @@ pub async fn ros_topic_manager(
     // bookkeeping the status of ros topics
     let mut topic_status = HashMap::new();
     let _ros_topic_manager_gdp_name = generate_random_gdp_name();
-
-    // read certificate from file in config
-    for topic in config.ros {
-        let topic_name = format!("{}", topic.topic_name);
-        let topic_type = topic.topic_type;
-        let action = topic.action;
-        let certificate = std::fs::read(format!(
-            "./scripts/crypto/{}/{}-private.pem",
-            config.crypto_name, config.crypto_name
-        ))
-        .expect("crypto file not found!");
-        let topic_gdp_name = GDPName(get_gdp_name_from_topic(
-            &topic_name.clone(),
-            &topic_type,
-            &certificate,
-        ));
-
-        // clear_topic_key(&gdp_name_to_string(topic_gdp_name));
-
-        match action.as_str() {
-            "sub" => {
-                let handle = tokio::spawn(async move {
-                    create_new_remote_publisher(
-                        topic_gdp_name,
-                        topic_name.clone(),
-                        topic_type,
-                        certificate,
-                    )
-                    .await;
-                    info!("exited");
-                });
-
-                waiting_rib_handles.push(handle);
-            }
-            "pub" => {
-                let handle = tokio::spawn(async move {
-                    create_new_remote_subscriber(
-                        topic_gdp_name,
-                        topic_name.clone(),
-                        topic_type,
-                        certificate,
-                    )
-                    .await;
-                    info!("exited");
-                });
-
-                waiting_rib_handles.push(handle);
-            }
-            _ => {
-                info!("topic {} has no action", topic_name);
-            }
-        }
-        let topic_name = format!("{}", topic.topic_name);
-        topic_status.insert(
-            topic_name,
-            RosTopicStatus {
-                action: action.clone(),
-            },
-        );
-    }
-
     let certificate = std::fs::read(format!(
         "./scripts/crypto/{}/{}-private.pem",
         config.crypto_name, config.crypto_name
     ))
     .expect("crypto file not found!");
+
+    let mut shutdown_signal_table = HashMap::new();
 
     loop {
         select! {
@@ -495,7 +436,8 @@ pub async fn ros_topic_manager(
                         ));
                         info!("detected a new topic {:?} with action {:?}, topic gdpname {:?}", topic_name, action, topic_gdp_name);
                         topic_status.insert(topic_name.clone(), RosTopicStatus { action: action.clone() });
-
+                        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<String>();
+                        shutdown_signal_table.insert(topic_name.clone(), shutdown_tx);
                         match action.as_str() {
                             // locally subscribe, globally publish
                             "sub" => {
