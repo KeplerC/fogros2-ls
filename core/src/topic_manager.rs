@@ -15,7 +15,6 @@ use tokio::select;
 
 use crate::db::*;
 use futures::{StreamExt};
-use redis::{self, PubSubCommands};
 use redis_async::{client, resp::FromResp};
 use tokio::process::Command;
 use tokio::sync::mpsc::{self};

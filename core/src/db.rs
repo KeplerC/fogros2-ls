@@ -9,7 +9,6 @@
 
 
 
-use futures::{StreamExt};
 use redis::{self, Client, Commands, RedisResult};
 
 
