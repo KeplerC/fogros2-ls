@@ -469,10 +469,7 @@ pub async fn ros_topic_manager(
         config.crypto_name, config.crypto_name
     ))
     .expect("crypto file not found!");
-    let ctx = r2r::Context::create().expect("failed to create context");
-    let node = r2r::Node::create(ctx, "ros_manager", "namespace").expect("failed to create node");
-    // when a new topic is detected, create a new thread
-    // to handle the topic
+
     loop {
         select! {
             Some(payload) = topic_request_rx.recv() => {
