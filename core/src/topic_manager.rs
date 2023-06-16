@@ -1,26 +1,26 @@
 #[cfg(feature = "ros")]
 use crate::network::ros::{ros_publisher, ros_subscriber};
 #[cfg(feature = "ros")]
-use crate::network::webrtc::{self, register_webrtc_stream, webrtc_reader_and_writer};
+use crate::network::webrtc::{register_webrtc_stream, webrtc_reader_and_writer};
 
 use crate::structs::{
     gdp_name_to_string, generate_random_gdp_name, get_gdp_name_from_topic, GDPName,
 };
 
-use async_datachannel::DataStream;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tokio::select;
-use tracing::subscriber;
+
 
 use crate::db::*;
-use futures::{future, StreamExt};
-use redis::{self, transaction, Client, Commands, PubSubCommands, RedisResult};
+use futures::{StreamExt};
+use redis::{self, PubSubCommands};
 use redis_async::{client, resp::FromResp};
 use tokio::process::Command;
 use tokio::sync::mpsc::{self};
 use tokio::time::Duration;
-use tokio::time::{sleep, timeout};
+use tokio::time::{sleep};
 use utils::app_config::AppConfig;
 
 /// determine the action of a new topic
@@ -97,7 +97,7 @@ async fn create_new_remote_publisher(
     topic_gdp_name: GDPName, topic_name: String, topic_type: String, certificate: Vec<u8>,
 ) {
     let redis_url = get_redis_url();
-    allow_keyspace_notification(&redis_url);
+    allow_keyspace_notification(&redis_url).expect("unable to allow keyspace notification");
     let publisher_listening_gdp_name = generate_random_gdp_name();
 
     // currently open another synchronous connection for put and get
@@ -165,7 +165,7 @@ async fn create_new_remote_publisher(
                 Some(message) => {
                     let received_operation = String::from_resp(message.unwrap()).unwrap();
                     info!("KVS {}", received_operation);
-                    if (received_operation != "lpush") {
+                    if received_operation != "lpush" {
                         info!("the operation is not lpush, ignore");
                         continue;
                     }
@@ -230,7 +230,7 @@ async fn create_new_remote_subscriber(
 ) {
     let subscriber_listening_gdp_name = generate_random_gdp_name();
     let redis_url = get_redis_url();
-    allow_keyspace_notification(&redis_url);
+    allow_keyspace_notification(&redis_url).expect("unable to allow keyspace notification");
     // currently open another synchronous connection for put and get
     let publisher_topic = format!("{}-pub", gdp_name_to_string(topic_gdp_name));
     let subscriber_topic = format!("{}-sub", gdp_name_to_string(topic_gdp_name));
@@ -334,7 +334,7 @@ async fn create_new_remote_subscriber(
                     Ok(message) => {
                         let received_operation = String::from_resp(message).unwrap();
                         info!("KVS {}", received_operation);
-                        if (received_operation != "lpush") {
+                        if received_operation != "lpush" {
                             info!("the operation is not lpush, ignore");
                             continue;
                         }

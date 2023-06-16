@@ -1,10 +1,7 @@
 use axum::{
-    routing::{get, post},
-    http::StatusCode,
-    response::IntoResponse,
-    Json, Router,
+    routing::{get}, Router,
 };
-use serde::{Deserialize, Serialize};
+
 use std::net::SocketAddr;
 
 // basic handler that responds with a static string

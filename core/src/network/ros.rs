@@ -5,10 +5,10 @@ use futures::stream::StreamExt;
 
 #[cfg(feature = "ros")]
 use r2r::QosProfile;
-use serde_json;
 
-use std::str;
-use tokio::sync::mpsc::unbounded_channel;
+
+
+
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -96,7 +96,7 @@ pub async fn ros_subscriber(
                 info!("received a packet {:?}", packet);
                 let ros_msg = packet;
                 let packet = construct_gdp_forward_from_bytes(topic_gdp_name, node_gdp_name, ros_msg );
-                m_tx.send(packet);
+                m_tx.send(packet).expect("send for ros subscriber failure");
 
                 // proc_gdp_packet(packet,  // packet
                 //     &fib_tx,  //used to send packet to fib

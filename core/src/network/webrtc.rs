@@ -17,7 +17,7 @@ use futures::{
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
+use tracing::{info};
 use utils::app_config::AppConfig;
 
 /// parse the header of the packet using the first null byte as delimiter
