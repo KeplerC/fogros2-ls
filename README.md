@@ -27,6 +27,21 @@ FogROS2-SGC is a cloud robotics platform for connecting disjoint ROS2 networks a
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 
+## TODO List 
+
+[] A local restful API interface for ROS topic management  
+[] adding a topic dynamically 
+[] removal of a topic thread
+[] Removing topics dynamically 
+
+controller (separate repo)
+[] Put topic scanning as a separate program to replace `automatic.toml`
+[] Question: how to coordinate switching (TCP to a common server? may work in short term)
+[] well defined crytpo per topic
+
+Optional 
+[] create one ROS subscriber thread per topic 
+[] alias (repulish) for local topics 
 
 ## Local Demo 
 If you want to get a taste of FogROS2 SGC without setting up the environment, just run 
