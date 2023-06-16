@@ -14,13 +14,15 @@ use utils::error::Result;
 async fn router_async_loop() {
     let config = AppConfig::fetch().expect("App config unable to load");
     info!("{:#?}", config);
+
+    let (topic_request_tx, topic_request_rx) = mpsc::unbounded_channel();
     let mut future_handles = Vec::new();
 
-    let ros_topic_manager_handle = tokio::spawn(ros_topic_manager());
+    let ros_topic_manager_handle = tokio::spawn(ros_topic_manager(topic_request_rx));
     future_handles.push(ros_topic_manager_handle);
 
 
-    let ros_api_server_handle = tokio::spawn(ros_api_server());
+    let ros_api_server_handle = tokio::spawn(ros_api_server(topic_request_tx));
     future_handles.push(ros_api_server_handle);
     
     future::join_all(future_handles).await;

@@ -8,9 +8,12 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 
 
+
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ROSTopic {
-    pub action: String,
+pub struct ROSTopicRequest {
+    pub api_op: String, // add | del 
+    pub ros_op: String, // pub | sub | noop
+    pub crypto: String, 
     pub topic_name: String,
     pub topic_type: String,
 }
@@ -19,6 +22,13 @@ pub struct ROSTopic {
 pub struct ROSResponse {
     pub result: String,
 }
+
+// Our shared state
+struct AppState {
+    // Channel used to send messages to all connected clients.
+    tx: UnboundedSender<ROSTopic>, 
+}
+
 
 // basic handler that responds with a static string
 async fn root() -> &'static str {
@@ -30,8 +40,10 @@ async fn handle_ros_topic(
     // this argument tells axum to parse the request body
     // as JSON into a `CreateUser` type
     Json(payload): Json<ROSTopic>,
+    State(state): State<Arc<AppState>>,
 ) -> (StatusCode, Json<ROSResponse>) {
     info!("received {:?}", payload);
+    state.tx.send(payload);
     // insert your application logic here
     let result = ROSResponse {
         result: "done".to_owned(),
@@ -43,12 +55,16 @@ async fn handle_ros_topic(
 }
 
 
-pub async fn ros_api_server() {
+pub async fn ros_api_server(
+    topic_request_tx: UnboundedSender<ROSTopic>, 
+) {
 
+    let app_state = Arc::new(AppState { tx: topic_request_tx });
     // build our application with a route
     let app = Router::new()
         .route("/", get(root))
-        .route("/add", post(handle_ros_topic));
+        .route("/add", post(handle_ros_topic))
+        .with_state(app_state);
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`

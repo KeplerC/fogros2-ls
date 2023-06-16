@@ -2,7 +2,9 @@ import requests
 uri = "http://localhost:3000/add"
 
 ros_topic = {
-    "action": "pub",
+    "api_op": "add"
+    "ros_op": "pub",
+    "crypto" "test_cert",
     "topic_name": "/chatter",
     "topic_type": "std_msgs/msg/String",
 }

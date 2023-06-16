@@ -8,6 +8,7 @@ use crate::structs::{
 };
 
 
+use futures::channel::mpsc::UnboundedReceiver;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tokio::select;
@@ -392,7 +393,9 @@ pub struct RosTopicStatus {
     pub action: String,
 }
 
-pub async fn ros_topic_manager() {
+pub async fn ros_topic_manager(
+    topic_request_rx: UnboundedReceiver<ROSTopic>, 
+) {
     let mut waiting_rib_handles = vec![];
     // get ros information from config file
     let config = AppConfig::fetch().expect("Failed to fetch config");
@@ -471,6 +474,10 @@ pub async fn ros_topic_manager() {
     // to handle the topic
     loop {
         select! {
+            Some(payload) = topic_request_rx.recv() => {
+                
+            },
+
             _ = sleep(Duration::from_millis(5000)) => {
 
                 if !config.automatic_topic_discovery {
