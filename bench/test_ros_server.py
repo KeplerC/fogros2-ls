@@ -1,28 +1,28 @@
 import requests 
 from time import sleep
-uri = "http://localhost:3000/add"
 
-ros_topic = {
-    "api_op": "add",
-    "ros_op": "pub",
-    "crypto": "test_cert",
-    "topic_name": "/chatter",
-    "topic_type": "std_msgs/msg/String",
-}
+def send_request(
+    api_op, 
+    ros_op,
+    topic = "/chatter",
+    type = "std_msgs/msg/String", 
+    uri = "http://localhost:3000/add"
 
-# Create a new resource
-response = requests.post(uri, json = ros_topic)
-print(response)
-sleep(2)
+):
+    sleep(2)
+    ros_topic = {
+        "api_op": api_op,
+        "ros_op": ros_op,
+        "crypto": "test_cert",
+        "topic_name": topic,
+        "topic_type": type,
+    }
+    # Create a new resource
+    response = requests.post(uri, json = ros_topic)
+    print(response)
 
-ros_topic = {
-    "api_op": "add",
-    "ros_op": "sub",
-    "crypto": "test_cert",
-    "topic_name": "/chatter",
-    "topic_type": "std_msgs/msg/String",
-}
-
-# Create a new resource
-response = requests.post(uri, json = ros_topic)
-print(response)
+send_request("add", "sub", topic = "/chatter2")
+send_request("add", "pub", topic = "/chatter2")  
+send_request("add", "sub")
+send_request("add", "pub")
+send_request("del", "sub")

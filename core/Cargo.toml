@@ -51,6 +51,7 @@ redis-async = "0.16.0"
 # pnet_packet = { version = "0.31.0", features = ["std"] }
 axum = "0.6.18"
 axum-macros = "0.3.7"
+tokio-util = "0.7.8"
 
 [build-dependencies]
 tonic-build = "0.8"

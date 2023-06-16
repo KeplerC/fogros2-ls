@@ -8,7 +8,7 @@ use crate::structs::{
     gdp_name_to_string, generate_random_gdp_name, get_gdp_name_from_topic, GDPName,
 };
 
-
+use tokio_util::sync::CancellationToken;
 use tokio::sync::mpsc::UnboundedReceiver;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -429,6 +429,7 @@ pub async fn ros_topic_manager(
                         //     );
                         //     continue;
                         // }
+                        
                         let topic_gdp_name = GDPName(get_gdp_name_from_topic(
                             &topic_name,
                             &topic_type,
@@ -436,43 +437,58 @@ pub async fn ros_topic_manager(
                         ));
                         info!("detected a new topic {:?} with action {:?}, topic gdpname {:?}", topic_name, action, topic_gdp_name);
                         topic_status.insert(topic_name.clone(), RosTopicStatus { action: action.clone() });
-                        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<String>();
-                        shutdown_signal_table.insert(topic_name.clone(), shutdown_tx);
+                        let token = CancellationToken::new();
                         match action.as_str() {
                             // locally subscribe, globally publish
                             "sub" => {
-                                let topic_name = topic_name.clone();
+                                let topic_name_cloned = topic_name.clone();
                                 let certificate = certificate.clone();
+                                let cloned_token = token.clone();
                                 let handle = tokio::spawn(
                                     async move {
-                                        create_new_remote_publisher(topic_gdp_name, topic_name, topic_type, certificate).await;
+                                        select! {
+                                            _ = create_new_remote_publisher(topic_gdp_name, topic_name_cloned, topic_type, certificate) => {}
+                                            _ = cloned_token.cancelled() => {
+                                                info!("local subscriber received cancel command");
+                                            }
+                                        }
                                     }
                                 );
                                 waiting_rib_handles.push(handle);
+                                shutdown_signal_table.insert(topic_name.clone(), token);
                             }
 
                             // locally publish, globally subscribe
                             "pub" => {
                                 // subscribe to a pattern that matches the key you're interested in
                                 // create a new thread to handle that listens for the topic
-                                let topic_name = topic_name.clone();
+                                let topic_name_cloned = topic_name.clone();
                                 let certificate = certificate.clone();
                                 let topic_type = topic_type.clone();
+                                let cloned_token = token.clone();
                                 let handle = tokio::spawn(
                                     async move {
-                                        create_new_remote_subscriber(topic_gdp_name,
-                                            topic_name,
-                                            topic_type,
-                                            certificate).await;
+                                        select! {
+                                            _ = create_new_remote_subscriber(topic_gdp_name, topic_name_cloned, topic_type, certificate) => {}
+                                            _ = cloned_token.cancelled() => {
+                                                info!("local publisher received cancel command");
+                                            }
+                                        }
                                     }
                                 );
                                 waiting_rib_handles.push(handle);
+                                shutdown_signal_table.insert(topic_name.clone(), token);
                             }
                             _ => {
                                 warn!("unknown action {}", action);
                             }
                         }
                     }, 
+                    "del" => {
+                        info!("deleting topic {:?}", payload);
+                        shutdown_signal_table[&payload.topic_name].cancel();
+                    }
+
                     _ => {
                         info!("operation {} not handled!", payload.api_op);
                     }
