@@ -33,6 +33,7 @@ pub struct NewTopicConnectionRequest {
 }
 
 
+// ROS subscriber -> webrtc (publish remotely)
 pub async fn ros_topic_publisher_handler(
     mut status_recv: UnboundedReceiver<NewTopicConnectionRequest>,
 ) {
@@ -66,7 +67,7 @@ pub async fn ros_topic_publisher_handler(
     }
 }
 
-
+// webrtc -> ROS publisher (publish locally)
 pub async fn ros_topic_subscriber_handler(
     mut status_recv: UnboundedReceiver<NewTopicConnectionRequest>,
 ) {
