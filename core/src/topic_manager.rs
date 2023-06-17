@@ -33,10 +33,9 @@ pub struct NewTopicConnectionRequest {
 }
 
 
-pub async fn ros_topic_creator_handler(
+pub async fn ros_topic_publisher_handler(
     mut status_recv: UnboundedReceiver<NewTopicConnectionRequest>,
 ) {
-    
     loop{
         tokio::select! {
             Some(request) = status_recv.recv() => {
@@ -48,39 +47,59 @@ pub async fn ros_topic_creator_handler(
                 let node_name = "doesntmatter".to_owned();
 
                 info!(
-                    "[topic_creator_handler] topic creator for topic {}, type {}, action {}",
+                    "[ros_topic_publisher_handler] topic creator for topic {}, type {}, action {}",
                     topic_name, topic_type, action
                 );
                 let (ros_tx, ros_rx) = mpsc::unbounded_channel();
                 let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
                 tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx));
             
-                let _ros_handle = match action.as_str() {
-                    "sub" => match topic_type.as_str() {
-                        _ => tokio::spawn(ros_subscriber(
-                            node_name,
-                            topic_name,
-                            topic_type,
-                            certificate,
-                            rtc_tx, // m_tx is the sender to the webrtc reader
-                        )),
-                    },
-                    "pub" => match topic_type.as_str() {
-                        _ => tokio::spawn(ros_publisher(
-                            node_name,
-                            topic_name,
-                            topic_type,
-                            certificate,
-                            ros_rx, // m_rx is the receiver from the webrtc writer
-                        )),
-                    },
-                    _ => panic!("unknown action"),
-                };
+                tokio::spawn(ros_subscriber(
+                    node_name,
+                    topic_name,
+                    topic_type,
+                    certificate,
+                    rtc_tx, // m_tx is the sender to the webrtc reader
+                ));
             }
         }
     }
-
 }
+
+
+pub async fn ros_topic_subscriber_handler(
+    mut status_recv: UnboundedReceiver<NewTopicConnectionRequest>,
+) {
+    loop{
+        tokio::select! {
+            Some(request) = status_recv.recv() => {
+                let topic_name = request.topic_name; 
+                let topic_type = request.topic_type;
+                let action = request.action; 
+                let certificate = request.certificate; 
+                let stream = request.stream; 
+                let node_name = "doesntmatter".to_owned();
+
+                info!(
+                    "[ros_topic_subscriber_handler] topic creator for topic {}, type {}, action {}",
+                    topic_name, topic_type, action
+                );
+                let (ros_tx, ros_rx) = mpsc::unbounded_channel();
+                let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
+                tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx));
+            
+                tokio::spawn(ros_publisher(
+                    node_name,
+                    topic_name,
+                    topic_type,
+                    certificate,
+                    ros_rx, // m_rx is the receiver from the webrtc writer
+                ));
+            }
+        }
+    }
+}
+
 
 async fn create_new_remote_publisher(
     topic_gdp_name: GDPName, topic_name: String, topic_type: String, certificate: Vec<u8>,
@@ -405,10 +424,16 @@ pub async fn ros_topic_manager(
     .expect("crypto file not found!");
 
 
-    let (topic_operation_tx, topic_operation_rx) = mpsc::unbounded_channel();
+    let (publisher_operation_tx, publisher_operation_rx) = mpsc::unbounded_channel();
     let topic_creator_handle = tokio::spawn(
         async move {
-            ros_topic_creator_handler(topic_operation_rx).await;
+            ros_topic_publisher_handler(publisher_operation_rx).await;
+        }
+    );
+    let (subscriber_operation_tx, subscriber_operation_rx) = mpsc::unbounded_channel();
+    let topic_creator_handle = tokio::spawn(
+        async move {
+            ros_topic_publisher_handler(subscriber_operation_rx).await;
         }
     );
     waiting_rib_handles.push(topic_creator_handle);
@@ -447,7 +472,7 @@ pub async fn ros_topic_manager(
                             "sub" => {
                                 let topic_name_cloned = topic_name.clone();
                                 let certificate = certificate.clone();
-                                let topic_operation_tx = topic_operation_tx.clone();
+                                let topic_operation_tx = publisher_operation_tx.clone();
                                 let handle = tokio::spawn(
                                     async move {
                                         create_new_remote_publisher(topic_gdp_name, topic_name_cloned, topic_type, certificate,
@@ -465,7 +490,7 @@ pub async fn ros_topic_manager(
                                 let topic_name_cloned = topic_name.clone();
                                 let certificate = certificate.clone();
                                 let topic_type = topic_type.clone();
-                                let topic_operation_tx = topic_operation_tx.clone();
+                                let topic_operation_tx = subscriber_operation_tx.clone();
                                 let handle = tokio::spawn(
                                     async move {
                                         create_new_remote_subscriber(topic_gdp_name, topic_name_cloned, topic_type, certificate, topic_operation_tx).await;
