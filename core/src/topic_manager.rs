@@ -9,7 +9,7 @@ use crate::structs::{
 };
 
 use tokio_util::sync::CancellationToken;
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::{UnboundedReceiver,UnboundedSender};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tokio::select;
@@ -24,43 +24,67 @@ use tokio::time::Duration;
 use tokio::time::{sleep};
 use utils::app_config::AppConfig;
 
-pub async fn ros_topic_creator(
-    stream: async_datachannel::DataStream, node_name: String, topic_name: String,
-    topic_type: String, action: String, certificate: Vec<u8>,
-) {
-    info!(
-        "topic creator for topic {}, type {}, action {}",
-        topic_name, topic_type, action
-    );
-    let (ros_tx, ros_rx) = mpsc::unbounded_channel();
-    let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
-    tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx));
+pub struct NewTopicConnectionRequest {
+    action: String, 
+    stream: async_datachannel::DataStream, 
+    topic_name: String,
+    topic_type: String, 
+    certificate: Vec<u8>,
+}
 
-    let _ros_handle = match action.as_str() {
-        "sub" => match topic_type.as_str() {
-            _ => tokio::spawn(ros_subscriber(
-                node_name,
-                topic_name,
-                topic_type,
-                certificate,
-                rtc_tx, // m_tx is the sender to the webrtc reader
-            )),
-        },
-        "pub" => match topic_type.as_str() {
-            _ => tokio::spawn(ros_publisher(
-                node_name,
-                topic_name,
-                topic_type,
-                certificate,
-                ros_rx, // m_rx is the receiver from the webrtc writer
-            )),
-        },
-        _ => panic!("unknown action"),
-    };
+
+pub async fn ros_topic_creator_handler(
+    mut status_recv: UnboundedReceiver<NewTopicConnectionRequest>,
+) {
+    
+    loop{
+        tokio::select! {
+            Some(request) = status_recv.recv() => {
+                let topic_name = request.topic_name; 
+                let topic_type = request.topic_type;
+                let action = request.action; 
+                let certificate = request.certificate; 
+                let stream = request.stream; 
+                let node_name = "doesntmatter".to_owned();
+
+                info!(
+                    "[topic_creator_handler] topic creator for topic {}, type {}, action {}",
+                    topic_name, topic_type, action
+                );
+                let (ros_tx, ros_rx) = mpsc::unbounded_channel();
+                let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
+                tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx));
+            
+                let _ros_handle = match action.as_str() {
+                    "sub" => match topic_type.as_str() {
+                        _ => tokio::spawn(ros_subscriber(
+                            node_name,
+                            topic_name,
+                            topic_type,
+                            certificate,
+                            rtc_tx, // m_tx is the sender to the webrtc reader
+                        )),
+                    },
+                    "pub" => match topic_type.as_str() {
+                        _ => tokio::spawn(ros_publisher(
+                            node_name,
+                            topic_name,
+                            topic_type,
+                            certificate,
+                            ros_rx, // m_rx is the receiver from the webrtc writer
+                        )),
+                    },
+                    _ => panic!("unknown action"),
+                };
+            }
+        }
+    }
+
 }
 
 async fn create_new_remote_publisher(
     topic_gdp_name: GDPName, topic_name: String, topic_type: String, certificate: Vec<u8>,
+    topic_operation_tx: UnboundedSender<NewTopicConnectionRequest>
 ) {
     let redis_url = get_redis_url();
     allow_keyspace_notification(&redis_url).expect("unable to allow keyspace notification");
@@ -89,6 +113,7 @@ async fn create_new_remote_publisher(
         let topic_type_clone = topic_type.clone();
         let certificate_clone = certificate.clone();
         let publisher_topic = publisher_topic.clone();
+        let topic_operation_tx = topic_operation_tx.clone();
         let redis_url = redis_url.clone();
         let publisher_listening_gdp_name_clone = publisher_listening_gdp_name.clone();
 
@@ -111,15 +136,14 @@ async fn create_new_remote_publisher(
 
             let webrtc_stream = register_webrtc_stream(&publisher_url, None).await;
             info!("publisher registered webrtc stream");
-            let _ros_handle = ros_topic_creator(
-                webrtc_stream,
-                format!("{}_{}", "ros_manager_node", rand::random::<u32>()),
-                topic_name_clone,
-                topic_type_clone,
-                "sub".to_string(),
-                certificate_clone,
-            )
-            .await;
+            let topic_creator_request = NewTopicConnectionRequest {
+                action: "sub".to_string(),
+                stream: webrtc_stream,
+                topic_name: topic_name_clone,
+                topic_type: topic_type_clone,
+                certificate:certificate_clone,
+            }; 
+            topic_operation_tx.send(topic_creator_request);
         })
     });
     let mut tasks = tasks.collect::<Vec<_>>();
@@ -168,15 +192,19 @@ async fn create_new_remote_publisher(
 
                     let webrtc_stream = register_webrtc_stream(&publisher_url, None).await;
                     info!("publisher registered webrtc stream");
-                    let _ros_handle = ros_topic_creator(
-                        webrtc_stream,
-                        format!("{}_{}", "ros_manager_node", rand::random::<u32>()),
-                        topic_name.clone(),
-                        topic_type.clone(),
-                        "sub".to_string(),
-                        certificate.clone(),
-                    )
-                    .await;
+                    let topic_name_clone = topic_name.clone();
+                    let topic_type_clone = topic_type.clone();
+                    let certificate_clone = certificate.clone();
+                    let publisher_topic = publisher_topic.clone();
+                    let topic_operation_tx = topic_operation_tx.clone();
+                    let topic_creator_request = NewTopicConnectionRequest {
+                        action: "sub".to_string(),
+                        stream: webrtc_stream,
+                        topic_name: topic_name_clone,
+                        topic_type: topic_type_clone,
+                        certificate:certificate_clone,
+                    }; 
+                    topic_operation_tx.send(topic_creator_request);
                 }
                 None => {
                     info!("message is none");
@@ -193,6 +221,7 @@ async fn create_new_remote_publisher(
 
 async fn create_new_remote_subscriber(
     topic_gdp_name: GDPName, topic_name: String, topic_type: String, certificate: Vec<u8>,
+    topic_operation_tx: UnboundedSender<NewTopicConnectionRequest>
 ) {
     let subscriber_listening_gdp_name = generate_random_gdp_name();
     let redis_url = get_redis_url();
@@ -227,6 +256,7 @@ async fn create_new_remote_subscriber(
         let topic_name_clone = topic_name.clone();
         let topic_type_clone = topic_type.clone();
         let certificate_clone = certificate.clone();
+        let topic_operation_tx = topic_operation_tx.clone();
         let subscriber_listening_gdp_name_clone = subscriber_listening_gdp_name.clone();
         if !publisher.ends_with(&gdp_name_to_string(subscriber_listening_gdp_name_clone)) {
             info!(
@@ -277,15 +307,15 @@ async fn create_new_remote_subscriber(
             let webrtc_stream =
                 register_webrtc_stream(&my_signaling_url, Some(peer_dialing_url)).await;
             info!("subscriber registered webrtc stream");
-            let _ros_handle = ros_topic_creator(
-                webrtc_stream,
-                format!("{}_{}", "ros_manager_node", rand::random::<u32>()),
-                topic_name_clone,
-                topic_type_clone,
-                "pub".to_string(),
-                certificate_clone,
-            )
-            .await;
+
+            let topic_creator_request = NewTopicConnectionRequest {
+                action: "pub".to_string(),
+                stream: webrtc_stream,
+                topic_name: topic_name_clone,
+                topic_type: topic_type_clone,
+                certificate:certificate_clone,
+            }; 
+            topic_operation_tx.send(topic_creator_request);
         })
     });
 
@@ -332,18 +362,18 @@ async fn create_new_remote_subscriber(
                         let webrtc_stream = register_webrtc_stream(&my_signaling_url, Some(peer_dialing_url)).await;
 
                         info!("subscriber registered webrtc stream");
-
-                        let _ros_handle = ros_topic_creator(
-                            webrtc_stream,
-                            format!("{}_{}", "ros_manager_node", rand::random::<u32>()),
-                            topic_name.clone(),
-                            topic_type.clone(),
-                            "pub".to_string(),
-                            certificate.clone(),
-                        )
-                        .await;
-
-
+                        let topic_name_clone = topic_name.clone();
+                        let topic_type_clone = topic_type.clone();
+                        let certificate_clone = certificate.clone();
+                        let topic_operation_tx = topic_operation_tx.clone();
+                        let topic_creator_request = NewTopicConnectionRequest {
+                            action: "pub".to_string(),
+                            stream: webrtc_stream,
+                            topic_name: topic_name_clone,
+                            topic_type: topic_type_clone,
+                            certificate:certificate_clone,
+                        }; 
+                        topic_operation_tx.send(topic_creator_request);
                     },
                     Err(e) => {
                         eprintln!("ERROR: {}", e);
@@ -373,6 +403,15 @@ pub async fn ros_topic_manager(
         config.crypto_name, config.crypto_name
     ))
     .expect("crypto file not found!");
+
+
+    let (topic_operation_tx, topic_operation_rx) = mpsc::unbounded_channel();
+    let topic_creator_handle = tokio::spawn(
+        async move {
+            ros_topic_creator_handler(topic_operation_rx).await;
+        }
+    );
+    waiting_rib_handles.push(topic_creator_handle);
 
     let mut shutdown_signal_table = HashMap::new();
 
@@ -408,15 +447,11 @@ pub async fn ros_topic_manager(
                             "sub" => {
                                 let topic_name_cloned = topic_name.clone();
                                 let certificate = certificate.clone();
-                                let cloned_token = token.clone();
+                                let topic_operation_tx = topic_operation_tx.clone();
                                 let handle = tokio::spawn(
                                     async move {
-                                        select! {
-                                            _ = create_new_remote_publisher(topic_gdp_name, topic_name_cloned, topic_type, certificate) => {}
-                                            _ = cloned_token.cancelled() => {
-                                                info!("local subscriber received cancel command");
-                                            }
-                                        }
+                                        create_new_remote_publisher(topic_gdp_name, topic_name_cloned, topic_type, certificate,
+                                            topic_operation_tx).await;
                                     }
                                 );
                                 waiting_rib_handles.push(handle);
@@ -430,15 +465,10 @@ pub async fn ros_topic_manager(
                                 let topic_name_cloned = topic_name.clone();
                                 let certificate = certificate.clone();
                                 let topic_type = topic_type.clone();
-                                let cloned_token = token.clone();
+                                let topic_operation_tx = topic_operation_tx.clone();
                                 let handle = tokio::spawn(
                                     async move {
-                                        select! {
-                                            _ = create_new_remote_subscriber(topic_gdp_name, topic_name_cloned, topic_type, certificate) => {}
-                                            _ = cloned_token.cancelled() => {
-                                                info!("local publisher received cancel command");
-                                            }
-                                        }
+                                        create_new_remote_subscriber(topic_gdp_name, topic_name_cloned, topic_type, certificate, topic_operation_tx).await;
                                     }
                                 );
                                 waiting_rib_handles.push(handle);
