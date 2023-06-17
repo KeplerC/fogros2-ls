@@ -17,7 +17,14 @@ COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 
-FROM chef AS builder 
+FROM chef AS signal_builder 
+
+WORKDIR /app
+COPY ./signaling ./
+RUN cargo build --release
+
+
+FROM chef AS sgc_builder 
 
 WORKDIR /app
 COPY --from=planner /app/recipe.json recipe.json
@@ -31,16 +38,15 @@ WORKDIR /app/scripts
 RUN bash ./generate_crypto.sh
 # build app
 WORKDIR /app
-RUN cd /app/signaling && cargo build --release
 RUN . /opt/ros/humble/setup.sh && cargo build 
 
 # build the final image
 FROM chef
 WORKDIR /
-COPY --from=builder  /app/target/release/sgc_signaling_server /signaling_server
-COPY --from=builder /app/bench /fog_ws
-COPY --from=builder /app/src /src 
-COPY --from=builder /app/scripts /scripts
-COPY --from=builder /app/target/debug/gdp-router /
+COPY --from=signal_builder  /app/target/release/sgc_signaling_server /signaling_server
+COPY --from=sgc_builder /app/bench /fog_ws
+COPY --from=sgc_builder /app/src /src 
+COPY --from=sgc_builder /app/scripts /scripts
+COPY --from=sgc_builder /app/target/debug/gdp-router /
 
 CMD [ "source /opt/ros/rolling/setup.bash; cargo run", "router" ]

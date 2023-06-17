@@ -65,4 +65,24 @@ services:
           bash -c "source /opt/ros/humble/setup.bash; 
           ros2 run demo_nodes_py listener & 
           /gdp-router router"
-          
+
+    client:
+        build: 
+          context: ./
+          dockerfile: ./bench/Dockerfile
+        volumes:
+          - "./src:/src" 
+          - "./scripts:/scripts" 
+        depends_on:
+          - rib
+          - signal
+          - talker
+          - listener
+        environment:
+          NUM_TALKER : 1
+          NUM_LISTENER: 1
+        # TODO: this is a hack to make sure the subscriber is started after the publisher
+        # will also test the scenario that is opposite
+        command: >
+          bash -c "source /opt/ros/humble/setup.bash; 
+          python3 bench/docker_ros_server.py"
