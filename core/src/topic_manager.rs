@@ -24,41 +24,6 @@ use tokio::time::Duration;
 use tokio::time::{sleep};
 use utils::app_config::AppConfig;
 
-/// determine the action of a new topic
-/// pub/sub/noop
-/// Currently it uses cli to get the information
-/// TODO: use r2r/rcl to get the information
-async fn determine_topic_action(topic_name: String) -> String {
-    let output = Command::new("ros2")
-        .arg("topic")
-        .arg("info")
-        .arg(topic_name.as_str())
-        .output()
-        .await
-        .unwrap();
-    let output_str = String::from_utf8(output.stdout).unwrap();
-    info!("topic info of topic {}: {}", topic_name, output_str);
-    if output_str.contains("Publisher count: 0") {
-        info!(
-            "topic {} has no local publisher, mark as remote topic publisher",
-            topic_name
-        );
-        return "pub".to_string();
-    } else if output_str.contains("Subscription count: 0") {
-        info!(
-            "topic {} has no local subscriber, mark as remote topic subscriber",
-            topic_name
-        );
-        return "sub".to_string();
-    } else {
-        info!(
-            "topic {} has local publishers and subscribers, mark as noop",
-            topic_name
-        );
-        return "noop".to_string();
-    }
-}
-
 pub async fn ros_topic_creator(
     stream: async_datachannel::DataStream, node_name: String, topic_name: String,
     topic_type: String, action: String, certificate: Vec<u8>,

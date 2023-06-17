@@ -33,6 +33,14 @@ FogROS2-SGC is a cloud robotics platform for connecting disjoint ROS2 networks a
 [x] adding a topic dynamically 
 [x] removal of a topic thread
 [x] Removing topics dynamically 
+(Note, above approach doesn't work)
+
+Refactor 
+[] make topic_creator a separate thread that handles all pubsub
+[] one ROS node for all topics 
+[] remove a topic by removing the future of the polling topic 
+[] stoppable ROS future (connect as a publisher, but doesn't publish/susbcribe to the actual topic); needs to request to actually start and stop 
+[] internal multicast
 
 controller (separate repo)
 [] Put topic scanning as a separate program to replace `automatic.toml`
