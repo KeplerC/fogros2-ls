@@ -6,7 +6,7 @@ use crate::network::webrtc::{register_webrtc_stream, webrtc_reader_and_writer};
 
 use crate::pipeline::construct_gdp_forward_from_bytes;
 use crate::structs::{
-    gdp_name_to_string, generate_random_gdp_name, get_gdp_name_from_topic, GDPName,
+    gdp_name_to_string, generate_random_gdp_name, get_gdp_name_from_topic, GDPName, GdpAction, Packet,
 };
 
 use tokio_util::sync::CancellationToken;
@@ -86,9 +86,9 @@ pub async fn ros_topic_remote_publisher_handler(
                 .expect("topic subscribing failure");
                 tokio::spawn(async move {
 
-                    while let packet = subscriber.next().await {
+                    while let Some(packet) = subscriber.next().await {
                         info!("received a packet {:?}", packet);
-                        let ros_msg = packet.unwrap();
+                        let ros_msg = packet;
                         let packet = construct_gdp_forward_from_bytes(topic_gdp_name, node_gdp_name, ros_msg );
                         rtc_tx.send(packet).expect("send for ros subscriber failure");
                     }
@@ -102,6 +102,18 @@ pub async fn ros_topic_remote_publisher_handler(
 pub async fn ros_topic_remote_subscriber_handler(
     mut status_recv: UnboundedReceiver<NewTopicConnectionRequest>,
 ) {
+    let ctx = r2r::Context::create().expect("context creation failure");
+    let mut node = Arc::new(Mutex::new(r2r::Node::create(ctx, "sgc_remote_subscriber", "namespace").expect("node creation failure")));
+    
+    let ros_manager_node_clone = node.clone();
+    let _handle = tokio::task::spawn_blocking(move  || 
+        {
+            loop {
+                ros_manager_node_clone.clone().lock().unwrap().spin_once(std::time::Duration::from_millis(100));
+            }
+        }
+    );
+
     loop{
         tokio::select! {
             Some(request) = status_recv.recv() => {
@@ -111,22 +123,46 @@ pub async fn ros_topic_remote_subscriber_handler(
                 let certificate = request.certificate; 
                 let stream = request.stream; 
                 let node_name = "doesntmatter".to_owned();
+                let manager_node = node.clone();
+                let node_gdp_name = GDPName(get_gdp_name_from_topic(
+                    &node_name,
+                    &topic_type,
+                    &certificate,
+                ));
+                let topic_gdp_name = GDPName(get_gdp_name_from_topic(
+                    &topic_name,
+                    &topic_type,
+                    &certificate,
+                ));
 
                 info!(
                     "[ros_topic_remote_subscriber_handler] topic creator for topic {}, type {}, action {}",
                     topic_name, topic_type, action
                 );
-                let (ros_tx, ros_rx) = mpsc::unbounded_channel();
+                let (ros_tx, mut ros_rx) = mpsc::unbounded_channel();
                 let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
                 tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx));
             
-                tokio::spawn(ros_publisher(
-                    node_name,
-                    topic_name,
-                    topic_type,
-                    certificate,
-                    ros_rx, // m_rx is the receiver from the webrtc writer
-                ));
+                let mut publisher = manager_node.lock().unwrap()
+                .create_publisher_untyped(&topic_name, &topic_type, r2r::QosProfile::default())
+                .expect("topic publisher create failure");
+
+                tokio::spawn(async move {
+                    while let Some(pkt_to_forward) = ros_rx.recv().await {
+                        info!("received a packet {:?}", pkt_to_forward);
+                        if pkt_to_forward.action == GdpAction::Forward {
+                            info!("new payload to publish ");
+                            if pkt_to_forward.gdpname == topic_gdp_name {
+                                let payload = pkt_to_forward.get_byte_payload().unwrap();
+                                //let ros_msg = serde_json::from_str(str::from_utf8(payload).unwrap()).expect("json parsing failure");
+                                // info!("the decoded payload to publish is {:?}", ros_msg);
+                                publisher.publish(payload.clone()).unwrap();
+                            } else{
+                                info!("{:?} received a packet for name {:?}",pkt_to_forward.gdpname, topic_gdp_name);
+                            }
+                        }
+                    }
+                });
             }
         }
     }
