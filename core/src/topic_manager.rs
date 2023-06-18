@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::select;
-
+use crate::connection_fib::{FibStateChange, FibChangeAction};
 
 use crate::db::*;
 use futures::{StreamExt, TryFutureExt};
@@ -28,7 +28,7 @@ use tokio::time::{sleep};
 use utils::app_config::AppConfig;
 
 pub struct NewTopicConnectionRequest {
-    action: String, 
+    action: FibChangeAction, 
     stream: async_datachannel::DataStream, 
     topic_name: String,
     topic_type: String, 
@@ -74,14 +74,8 @@ pub async fn ros_topic_remote_publisher_handler(
                 let action = request.action; 
                 let certificate = request.certificate; 
                 let stream = request.stream; 
-                let node_name = "doesntmatter".to_owned();
                 let manager_node = node.clone();
                 let fib_tx = fib_tx.clone();
-                let node_gdp_name = GDPName(get_gdp_name_from_topic(
-                    &node_name,
-                    &topic_type,
-                    &certificate,
-                ));
                 let topic_gdp_name = GDPName(get_gdp_name_from_topic(
                     &topic_name,
                     &topic_type,
@@ -89,13 +83,23 @@ pub async fn ros_topic_remote_publisher_handler(
                 ));
 
                 info!(
-                    "[ros_topic_remote_publisher_handler] topic creator for topic {}, type {}, action {}",
+                    "[ros_topic_remote_publisher_handler] topic creator for topic {}, type {}, action {:?}",
                     topic_name, topic_type, action
                 );
+
+
 
                 // ROS subscriber -> FIB -> RTC
                 let (ros_tx, ros_rx) = mpsc::unbounded_channel();
                 let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
+                let channel_update_msg = FibStateChange {
+                    action: FibChangeAction::ADD, 
+                    topic_gdp_name: topic_gdp_name,
+                    forward_destination: Some(rtc_tx),
+                };
+                channel_tx.send(channel_update_msg);
+
+
                 let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx)); //ros_tx not used, no need to transmit to ROS
                 join_handles.push(rtc_handle);
             
@@ -107,7 +111,7 @@ pub async fn ros_topic_remote_publisher_handler(
                     while let Some(packet) = subscriber.next().await {
                         info!("received a ROS packet {:?}", packet);
                         let ros_msg = packet;
-                        let packet = construct_gdp_forward_from_bytes(topic_gdp_name, node_gdp_name, ros_msg );
+                        let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, ros_msg );
                         fib_tx.send(packet).expect("send for ros subscriber failure");
                     }
                 });
@@ -156,7 +160,7 @@ pub async fn ros_topic_remote_subscriber_handler(
                 ));
 
                 info!(
-                    "[ros_topic_remote_subscriber_handler] topic creator for topic {}, type {}, action {}",
+                    "[ros_topic_remote_subscriber_handler] topic creator for topic {}, type {}, action {:?}",
                     topic_name, topic_type, action
                 );
                 let (ros_tx, mut ros_rx) = mpsc::unbounded_channel();
@@ -249,7 +253,7 @@ async fn create_new_remote_publisher(
             let webrtc_stream = register_webrtc_stream(&publisher_url, None).await;
             info!("publisher registered webrtc stream");
             let topic_creator_request = NewTopicConnectionRequest {
-                action: "sub".to_string(),
+                action: FibChangeAction::ADD,
                 stream: webrtc_stream,
                 topic_name: topic_name_clone,
                 topic_type: topic_type_clone,
@@ -310,7 +314,7 @@ async fn create_new_remote_publisher(
                     let publisher_topic = publisher_topic.clone();
                     let topic_operation_tx = topic_operation_tx.clone();
                     let topic_creator_request = NewTopicConnectionRequest {
-                        action: "sub".to_string(),
+                        action: FibChangeAction::ADD,
                         stream: webrtc_stream,
                         topic_name: topic_name_clone,
                         topic_type: topic_type_clone,
@@ -421,7 +425,7 @@ async fn create_new_remote_subscriber(
             info!("subscriber registered webrtc stream");
 
             let topic_creator_request = NewTopicConnectionRequest {
-                action: "pub".to_string(),
+                action: FibChangeAction::ADD,
                 stream: webrtc_stream,
                 topic_name: topic_name_clone,
                 topic_type: topic_type_clone,
@@ -479,7 +483,7 @@ async fn create_new_remote_subscriber(
                         let certificate_clone = certificate.clone();
                         let topic_operation_tx = topic_operation_tx.clone();
                         let topic_creator_request = NewTopicConnectionRequest {
-                            action: "pub".to_string(),
+                            action: FibChangeAction::ADD,
                             stream: webrtc_stream,
                             topic_name: topic_name_clone,
                             topic_type: topic_type_clone,

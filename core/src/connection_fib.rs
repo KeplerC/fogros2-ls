@@ -4,58 +4,112 @@ use crate::{
     structs::{GDPName, GDPNameRecord, GDPPacket, GDPStatus},
 };
 use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 
-pub enum FibState{
-    Forward, 
-    Pause, 
-    Stopped,
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, Hash)]
+pub enum FibChangeAction{
+    ADD, 
+    PAUSE, 
+    PAUSEADD, // adding the entry to FIB, but keeps it paused
+    DELETE,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, Hash)]
+pub enum TopicStateInFIB{
+    RUNNING, 
+    PAUSED, 
+    DELETED,
+}
+
+
+#[derive(Debug)]
 pub struct FibStateChange {
-    state: FibState, 
-    topic_name: GDPName,
-    forwarders: UnboundedReceiver<GDPPacket>,
+    pub action: FibChangeAction, 
+    pub topic_gdp_name: GDPName,
+    pub forward_destination: Option<UnboundedSender<GDPPacket>>,
 }
 
+#[derive(Debug)]
 pub struct FIBState {
-    state: FibState,
+    state: TopicStateInFIB,
     receivers: Vec<UnboundedSender<GDPPacket>>, 
 }
 
+
+/// receive, check, and route GDP messages
+///
+/// receive from a pool of receiver connections (one per interface)
+/// use a hash table to figure out the corresponding
+///     hash table <gdp_name, send_tx>
+///     TODO: use future if the destination is unknown
+/// forward the packet to corresponding send_tx
 pub async fn connection_fib_handler(
     mut fib_rx: UnboundedReceiver<GDPPacket>, // its tx used to transmit data to fib 
     mut channel_rx: UnboundedReceiver<FibStateChange> // its tx used to update fib with new names/records 
 
 ){
-    let mut coonection_rib_table: HashMap<GDPName, FIBState> = HashMap::new();
+    let mut rib_state_table: HashMap<GDPName, FIBState> = HashMap::new();
 
     loop{
         tokio::select! {
             Some(pkt) = fib_rx.recv() => {
-                info!("received GDP packet {}", pkt)
+                info!("received GDP packet {}", pkt);
+                let topic_state = rib_state_table.get(&pkt.gdpname);
+                info!("the current topic state is {:?}", topic_state);
+                match topic_state {
+                    Some(s) => {
+                        if s.state == TopicStateInFIB::RUNNING {
+                            for dst in &s.receivers {
+                                dst.send(pkt.clone());
+                            }
+                        } else {
+                            warn!("the current topic state is {:?}, not forwarded", topic_state)
+                        }
+                    }, 
+                    None => {
+                        error!("The gdpname {:?} does not exist", pkt.gdpname)
+                    }
+                }
             }
     
             // update the table
             Some(update) = channel_rx.recv() => {
-                match update.state {
-                    FibState::Forward => {
+                match update.action {
+                    FibChangeAction::ADD => {
+                        info!("update status received {:?}", update);
                         
+                        match  rib_state_table.get_mut(&update.topic_gdp_name) {
+                            Some(v) => {
+                                v.receivers.push(update.forward_destination.unwrap());
+                            }
+                            None =>{
+                                info!("Creating a new entry of gdp name {:?}", update.topic_gdp_name);
+                                let state = FIBState {
+                                    state: TopicStateInFIB::RUNNING,
+                                    receivers: vec!(update.forward_destination.unwrap()),
+                                };
+                                rib_state_table.insert(
+                                    update.topic_gdp_name,
+                                    state,
+                                );
+                            }
+                        };
+                        // TODO: pause add
                     },
-                    FibState::Pause => {
-    
+                    FibChangeAction::PAUSE => {
+                        //todo pause 
                     },
-                    FibState::Stopped => {
-    
+                    FibChangeAction::PAUSEADD => {
+                        //todo pause 
                     },
+                    FibChangeAction::DELETE => todo!(),
                 }
             }
         }
     }
 }
-
-
 
 
 
@@ -88,13 +142,7 @@ pub async fn connection_fib_handler(
 //     }
 // }
 
-// /// receive, check, and route GDP messages
-// ///
-// /// receive from a pool of receiver connections (one per interface)
-// /// use a hash table to figure out the corresponding
-// ///     hash table <gdp_name, send_tx>
-// ///     TODO: use future if the destination is unknown
-// /// forward the packet to corresponding send_tx
+
 // pub async fn connection_fib(
 //     mut fib_rx: UnboundedReceiver<GDPPacket>, rib_query_tx: UnboundedSender<GDPNameRecord>,
 //     mut rib_response_rx: UnboundedReceiver<GDPNameRecord>,
