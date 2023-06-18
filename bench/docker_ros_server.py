@@ -28,9 +28,6 @@ send_request("add", "pub", ip = "fogros2-sgc-lite-listener-1")
 print("adding talker")
 send_request("add", "sub", ip = "fogros2-sgc-lite-talker-1")
 
-print("adding talker")
-send_request("del", "sub", ip = "fogros2-sgc-lite-talker-1")
-
 
 # for i in range(10):
 #     sleep(1)
