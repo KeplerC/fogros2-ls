@@ -42,6 +42,10 @@ sleep(5)
 print("remove the topic of talker's published topic")
 send_request("del", "sub", ip = "fogros2-sgc-lite-talker-1")
 
+sleep(5)
+print("adding it back")
+send_request("add", "sub", ip = "fogros2-sgc-lite-talker-1")
+
 
 # for i in range(10):
 #     sleep(1)
