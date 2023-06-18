@@ -3,30 +3,30 @@ use crate::{
     pipeline::{construct_gdp_advertisement_from_structs, construct_rib_query_from_bytes},
     structs::{GDPName, GDPNameRecord, GDPPacket, GDPStatus},
 };
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, Hash)]
-pub enum FibChangeAction{
-    ADD, 
-    PAUSE, 
+pub enum FibChangeAction {
+    ADD,
+    PAUSE,
     PAUSEADD, // adding the entry to FIB, but keeps it paused
     DELETE,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, Hash)]
-pub enum TopicStateInFIB{
-    RUNNING, 
-    PAUSED, 
+pub enum TopicStateInFIB {
+    RUNNING,
+    PAUSED,
     DELETED,
 }
 
 
 #[derive(Debug)]
 pub struct FibStateChange {
-    pub action: FibChangeAction, 
+    pub action: FibChangeAction,
     pub topic_gdp_name: GDPName,
     pub forward_destination: Option<UnboundedSender<GDPPacket>>,
 }
@@ -34,7 +34,7 @@ pub struct FibStateChange {
 #[derive(Debug)]
 pub struct FIBState {
     state: TopicStateInFIB,
-    receivers: Vec<UnboundedSender<GDPPacket>>, 
+    receivers: Vec<UnboundedSender<GDPPacket>>,
 }
 
 
@@ -46,13 +46,12 @@ pub struct FIBState {
 ///     TODO: use future if the destination is unknown
 /// forward the packet to corresponding send_tx
 pub async fn connection_fib_handler(
-    mut fib_rx: UnboundedReceiver<GDPPacket>, // its tx used to transmit data to fib 
-    mut channel_rx: UnboundedReceiver<FibStateChange> // its tx used to update fib with new names/records 
-
-){
+    mut fib_rx: UnboundedReceiver<GDPPacket>, // its tx used to transmit data to fib
+    mut channel_rx: UnboundedReceiver<FibStateChange>, /* its tx used to update fib with new names/records */
+) {
     let mut rib_state_table: HashMap<GDPName, FIBState> = HashMap::new();
 
-    loop{
+    loop {
         tokio::select! {
             Some(pkt) = fib_rx.recv() => {
                 info!("received GDP packet {}", pkt);
@@ -67,19 +66,19 @@ pub async fn connection_fib_handler(
                         } else {
                             warn!("the current topic state is {:?}, not forwarded", topic_state)
                         }
-                    }, 
+                    },
                     None => {
                         error!("The gdpname {:?} does not exist", pkt.gdpname)
                     }
                 }
             }
-    
+
             // update the table
             Some(update) = channel_rx.recv() => {
                 match update.action {
                     FibChangeAction::ADD => {
                         info!("update status received {:?}", update);
-                        
+
                         match  rib_state_table.get_mut(&update.topic_gdp_name) {
                             Some(v) => {
                                 v.receivers.push(update.forward_destination.unwrap());
@@ -99,10 +98,10 @@ pub async fn connection_fib_handler(
                         // TODO: pause add
                     },
                     FibChangeAction::PAUSE => {
-                        //todo pause 
+                        //todo pause
                     },
                     FibChangeAction::PAUSEADD => {
-                        //todo pause 
+                        //todo pause
                     },
                     FibChangeAction::DELETE => todo!(),
                 }
@@ -110,7 +109,6 @@ pub async fn connection_fib_handler(
         }
     }
 }
-
 
 
 // async fn send_to_destination(destinations: Vec<GDPChannel>, packet: GDPPacket) {

@@ -1,8 +1,8 @@
 extern crate tokio;
 extern crate tokio_core;
 
-use crate::topic_manager::ros_topic_manager;
 use crate::api_server::ros_api_server;
+use crate::topic_manager::ros_topic_manager;
 use futures::future;
 
 use tokio::sync::mpsc;
@@ -25,7 +25,7 @@ async fn router_async_loop() {
 
     let ros_api_server_handle = tokio::spawn(ros_api_server(topic_request_tx));
     future_handles.push(ros_api_server_handle);
-    
+
     future::join_all(future_handles).await;
 }
 

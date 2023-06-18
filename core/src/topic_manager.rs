@@ -7,31 +7,32 @@ use crate::network::webrtc::{register_webrtc_stream, webrtc_reader_and_writer};
 
 use crate::pipeline::construct_gdp_forward_from_bytes;
 use crate::structs::{
-    gdp_name_to_string, generate_random_gdp_name, get_gdp_name_from_topic, GDPName, GdpAction, Packet,
+    gdp_name_to_string, generate_random_gdp_name, get_gdp_name_from_topic, GDPName, GdpAction,
+    Packet,
 };
 
-use tokio_util::sync::CancellationToken;
-use tokio::sync::mpsc::{UnboundedReceiver,UnboundedSender};
+use crate::connection_fib::{FibChangeAction, FibStateChange};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::select;
-use crate::connection_fib::{FibStateChange, FibChangeAction};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio_util::sync::CancellationToken;
 
 use crate::db::*;
 use futures::{StreamExt, TryFutureExt};
 use redis_async::{client, resp::FromResp};
 use tokio::process::Command;
 use tokio::sync::mpsc::{self};
+use tokio::time::sleep;
 use tokio::time::Duration;
-use tokio::time::{sleep};
 use utils::app_config::AppConfig;
 
 pub struct NewTopicConnectionRequest {
-    action: FibChangeAction, 
-    stream: async_datachannel::DataStream, 
+    action: FibChangeAction,
+    stream: async_datachannel::DataStream,
     topic_name: String,
-    topic_type: String, 
+    topic_type: String,
     certificate: Vec<u8>,
 }
 
@@ -40,40 +41,39 @@ pub struct NewTopicConnectionRequest {
 pub async fn ros_topic_remote_publisher_handler(
     mut status_recv: UnboundedReceiver<NewTopicConnectionRequest>,
 ) {
-
-    let mut join_handles = vec!();
+    let mut join_handles = vec![];
 
     let (fib_tx, fib_rx) = mpsc::unbounded_channel();
     let (channel_tx, channel_rx) = mpsc::unbounded_channel();
-    let fib_handle = tokio::spawn(
-        async move {
-            connection_fib_handler(fib_rx, channel_rx).await;
-        }
-    );
+    let fib_handle = tokio::spawn(async move {
+        connection_fib_handler(fib_rx, channel_rx).await;
+    });
     join_handles.push(fib_handle);
 
 
     let ctx = r2r::Context::create().expect("context creation failure");
-    let mut node = Arc::new(Mutex::new(r2r::Node::create(ctx, "sgc_remote_publisher", "namespace").expect("node creation failure")));
-    
+    let mut node = Arc::new(Mutex::new(
+        r2r::Node::create(ctx, "sgc_remote_publisher", "namespace").expect("node creation failure"),
+    ));
+
     let ros_manager_node_clone = node.clone();
-    let _handle = tokio::task::spawn_blocking(move  || 
-        {
-            loop {
-                ros_manager_node_clone.clone().lock().unwrap().spin_once(std::time::Duration::from_millis(100));
-            }
-        }
-    );
+    let _handle = tokio::task::spawn_blocking(move || loop {
+        ros_manager_node_clone
+            .clone()
+            .lock()
+            .unwrap()
+            .spin_once(std::time::Duration::from_millis(100));
+    });
 
 
-    loop{
+    loop {
         tokio::select! {
             Some(request) = status_recv.recv() => {
-                let topic_name = request.topic_name; 
+                let topic_name = request.topic_name;
                 let topic_type = request.topic_type;
-                let action = request.action; 
-                let certificate = request.certificate; 
-                let stream = request.stream; 
+                let action = request.action;
+                let certificate = request.certificate;
+                let stream = request.stream;
                 let manager_node = node.clone();
                 let fib_tx = fib_tx.clone();
                 let topic_gdp_name = GDPName(get_gdp_name_from_topic(
@@ -93,7 +93,7 @@ pub async fn ros_topic_remote_publisher_handler(
                 let (ros_tx, ros_rx) = mpsc::unbounded_channel();
                 let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
                 let channel_update_msg = FibStateChange {
-                    action: FibChangeAction::ADD, 
+                    action: FibChangeAction::ADD,
                     topic_gdp_name: topic_gdp_name,
                     forward_destination: Some(rtc_tx),
                 };
@@ -102,7 +102,7 @@ pub async fn ros_topic_remote_publisher_handler(
 
                 let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx)); //ros_tx not used, no need to transmit to ROS
                 join_handles.push(rtc_handle);
-            
+
                 let mut subscriber = manager_node.lock().unwrap()
                 .subscribe_untyped(&topic_name, &topic_type, r2r::QosProfile::default())
                 .expect("topic subscribing failure");
@@ -125,38 +125,39 @@ pub async fn ros_topic_remote_publisher_handler(
 pub async fn ros_topic_remote_subscriber_handler(
     mut status_recv: UnboundedReceiver<NewTopicConnectionRequest>,
 ) {
-    let mut join_handles = vec!();
+    let mut join_handles = vec![];
 
     let (fib_tx, fib_rx) = mpsc::unbounded_channel();
     let (channel_tx, channel_rx) = mpsc::unbounded_channel();
-    let fib_handle = tokio::spawn(
-        async move {
-            connection_fib_handler(fib_rx, channel_rx).await;
-        }
-    );
+    let fib_handle = tokio::spawn(async move {
+        connection_fib_handler(fib_rx, channel_rx).await;
+    });
     join_handles.push(fib_handle);
 
 
     let ctx = r2r::Context::create().expect("context creation failure");
-    let mut node = Arc::new(Mutex::new(r2r::Node::create(ctx, "sgc_remote_subscriber", "namespace").expect("node creation failure")));
-    
-    let ros_manager_node_clone = node.clone();
-    let _handle = tokio::task::spawn_blocking(move  || 
-        {
-            loop {
-                ros_manager_node_clone.clone().lock().unwrap().spin_once(std::time::Duration::from_millis(100));
-            }
-        }
-    );
+    let mut node = Arc::new(Mutex::new(
+        r2r::Node::create(ctx, "sgc_remote_subscriber", "namespace")
+            .expect("node creation failure"),
+    ));
 
-    loop{
+    let ros_manager_node_clone = node.clone();
+    let _handle = tokio::task::spawn_blocking(move || loop {
+        ros_manager_node_clone
+            .clone()
+            .lock()
+            .unwrap()
+            .spin_once(std::time::Duration::from_millis(100));
+    });
+
+    loop {
         tokio::select! {
             Some(request) = status_recv.recv() => {
-                let topic_name = request.topic_name; 
+                let topic_name = request.topic_name;
                 let topic_type = request.topic_type;
-                let action = request.action; 
-                let certificate = request.certificate; 
-                let stream = request.stream; 
+                let action = request.action;
+                let certificate = request.certificate;
+                let stream = request.stream;
                 let manager_node = node.clone();
                 let topic_gdp_name = GDPName(get_gdp_name_from_topic(
                     &topic_name,
@@ -175,22 +176,22 @@ pub async fn ros_topic_remote_subscriber_handler(
                 let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
 
                 let channel_update_msg = FibStateChange {
-                    action: FibChangeAction::ADD, 
+                    action: FibChangeAction::ADD,
                     topic_gdp_name: topic_gdp_name,
                     forward_destination: Some(ros_tx),
                 };
                 channel_tx.send(channel_update_msg);
 
 
-                let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, fib_tx.clone(), rtc_rx)); 
+                let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, fib_tx.clone(), rtc_rx));
                 join_handles.push(rtc_handle);
-            
-                info!("before creating ros publisher"); 
+
+                info!("before creating ros publisher");
                 let mut publisher = manager_node.lock().unwrap()
                 .create_publisher_untyped(&topic_name, &topic_type, r2r::QosProfile::default())
                 .expect("topic publisher create failure");
-                info!("ros publisher create successfully"); 
-                
+                info!("ros publisher create successfully");
+
                 let ros_handle = tokio::spawn(async move {
                     info!("[ros_topic_remote_subscriber_handler] ROS handling loop has started!");
                     while let pkt_to_forward = ros_rx.recv().await.unwrap() {
@@ -217,7 +218,7 @@ pub async fn ros_topic_remote_subscriber_handler(
 
 async fn create_new_remote_publisher(
     topic_gdp_name: GDPName, topic_name: String, topic_type: String, certificate: Vec<u8>,
-    topic_operation_tx: UnboundedSender<NewTopicConnectionRequest>
+    topic_operation_tx: UnboundedSender<NewTopicConnectionRequest>,
 ) {
     let redis_url = get_redis_url();
     allow_keyspace_notification(&redis_url).expect("unable to allow keyspace notification");
@@ -274,8 +275,8 @@ async fn create_new_remote_publisher(
                 stream: webrtc_stream,
                 topic_name: topic_name_clone,
                 topic_type: topic_type_clone,
-                certificate:certificate_clone,
-            }; 
+                certificate: certificate_clone,
+            };
             topic_operation_tx.send(topic_creator_request);
         })
     });
@@ -299,7 +300,7 @@ async fn create_new_remote_publisher(
                         "get a list of subscribers from KVS {:?}",
                         updated_subscribers
                     );
-                    let subscriber = updated_subscribers.first().unwrap(); //first or last?
+                    let subscriber = updated_subscribers.first().unwrap(); // first or last?
                     if subscribers.clone().contains(subscriber) {
                         warn!("subscriber {} already in the list, ignore", subscriber);
                         continue;
@@ -335,8 +336,8 @@ async fn create_new_remote_publisher(
                         stream: webrtc_stream,
                         topic_name: topic_name_clone,
                         topic_type: topic_type_clone,
-                        certificate:certificate_clone,
-                    }; 
+                        certificate: certificate_clone,
+                    };
                     topic_operation_tx.send(topic_creator_request);
                 }
                 None => {
@@ -354,7 +355,7 @@ async fn create_new_remote_publisher(
 
 async fn create_new_remote_subscriber(
     topic_gdp_name: GDPName, topic_name: String, topic_type: String, certificate: Vec<u8>,
-    topic_operation_tx: UnboundedSender<NewTopicConnectionRequest>
+    topic_operation_tx: UnboundedSender<NewTopicConnectionRequest>,
 ) {
     let subscriber_listening_gdp_name = generate_random_gdp_name();
     let redis_url = get_redis_url();
@@ -446,8 +447,8 @@ async fn create_new_remote_subscriber(
                 stream: webrtc_stream,
                 topic_name: topic_name_clone,
                 topic_type: topic_type_clone,
-                certificate:certificate_clone,
-            }; 
+                certificate: certificate_clone,
+            };
             topic_operation_tx.send(topic_creator_request);
         })
     });
@@ -505,7 +506,7 @@ async fn create_new_remote_subscriber(
                             topic_name: topic_name_clone,
                             topic_type: topic_type_clone,
                             certificate:certificate_clone,
-                        }; 
+                        };
                         topic_operation_tx.send(topic_creator_request);
                     },
                     Err(e) => {
@@ -522,9 +523,7 @@ pub struct RosTopicStatus {
     pub action: String,
 }
 
-pub async fn ros_topic_manager(
-    mut topic_request_rx: UnboundedReceiver<ROSTopicRequest>, 
-) {
+pub async fn ros_topic_manager(mut topic_request_rx: UnboundedReceiver<ROSTopicRequest>) {
     let mut waiting_rib_handles = vec![];
     // get ros information from config file
     let config = AppConfig::fetch().expect("Failed to fetch config");
@@ -539,19 +538,15 @@ pub async fn ros_topic_manager(
 
 
     let (publisher_operation_tx, publisher_operation_rx) = mpsc::unbounded_channel();
-    let topic_creator_handle = tokio::spawn(
-        async move {
-            ros_topic_remote_publisher_handler(publisher_operation_rx).await;
-        }
-    );
+    let topic_creator_handle = tokio::spawn(async move {
+        ros_topic_remote_publisher_handler(publisher_operation_rx).await;
+    });
     waiting_rib_handles.push(topic_creator_handle);
-    
+
     let (subscriber_operation_tx, subscriber_operation_rx) = mpsc::unbounded_channel();
-    let topic_creator_handle = tokio::spawn(
-        async move {
-            ros_topic_remote_subscriber_handler(subscriber_operation_rx).await;
-        }
-    );
+    let topic_creator_handle = tokio::spawn(async move {
+        ros_topic_remote_subscriber_handler(subscriber_operation_rx).await;
+    });
     waiting_rib_handles.push(topic_creator_handle);
 
     let mut shutdown_signal_table = HashMap::new();
@@ -564,7 +559,7 @@ pub async fn ros_topic_manager(
                     "add" => {
 
                         let topic_name = payload.topic_name;
-                        let topic_type = payload.topic_type; 
+                        let topic_type = payload.topic_type;
                         let action = payload.ros_op;
 
                         // if topic_status.contains_key(&topic_name) {
@@ -574,7 +569,7 @@ pub async fn ros_topic_manager(
                         //     );
                         //     continue;
                         // }
-                        
+
                         let topic_gdp_name = GDPName(get_gdp_name_from_topic(
                             &topic_name,
                             &topic_type,
@@ -619,7 +614,7 @@ pub async fn ros_topic_manager(
                                 warn!("unknown action {}", action);
                             }
                         }
-                    }, 
+                    },
                     "del" => {
                         info!("deleting topic {:?}", payload);
                         shutdown_signal_table[&payload.topic_name].cancel();

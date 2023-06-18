@@ -2,14 +2,12 @@ extern crate futures_channel;
 extern crate futures_util;
 extern crate json;
 extern crate redis;
-/**
- * Rust signaling server example for libdatachannel
- * Copyright (c) 2020 Paul-Louis Ageneau
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/.
- */
+/// Rust signaling server example for libdatachannel
+/// Copyright (c) 2020 Paul-Louis Ageneau
+///
+/// This Source Code Form is subject to the terms of the Mozilla Public
+/// License, v. 2.0. If a copy of the MPL was not distributed with this
+/// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 extern crate tokio;
 extern crate tungstenite;
 

@@ -3,10 +3,7 @@ use crate::structs::get_gdp_name_from_topic;
 use crate::structs::{GDPName, GDPPacket, GdpAction, Packet};
 use futures::stream::StreamExt;
 
-#[cfg(feature = "ros")]
-use r2r::QosProfile;
-
-
+#[cfg(feature = "ros")] use r2r::QosProfile;
 
 
 use tokio::sync::mpsc::UnboundedReceiver;

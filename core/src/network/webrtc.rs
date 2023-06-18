@@ -17,7 +17,7 @@ use futures::{
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use tracing::{info};
+use tracing::info;
 use utils::app_config::AppConfig;
 
 /// parse the header of the packet using the first null byte as delimiter
@@ -260,7 +260,7 @@ pub async fn webrtc_reader_and_writer(
                             Ok(_) => {},
                             Err(_) => {error!("webrtc thread to ROS thread send failure");},
                         }
-                        
+
                         // proc_gdp_packet(packet,  // packet
                         //     &fib_tx,  //used to send packet to fib
                         //     &channel_tx, // used to send GDPChannel to fib

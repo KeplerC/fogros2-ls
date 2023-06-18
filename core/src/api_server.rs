@@ -1,20 +1,20 @@
+use axum::extract::State;
 use axum::{
-    routing::{get, post},
     http::StatusCode,
     response::IntoResponse,
+    routing::{get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
-use tokio::sync::mpsc::UnboundedSender;
-use axum::extract::State;
 use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ROSTopicRequest {
-    pub api_op: String, // add | del 
+    pub api_op: String, // add | del
     pub ros_op: String, // pub | sub | noop
-    pub crypto: String, 
+    pub crypto: String,
     pub topic_name: String,
     pub topic_type: String,
 }
@@ -27,7 +27,7 @@ pub struct ROSResponse {
 // Our shared state
 struct AppState {
     // Channel used to send messages to all connected clients.
-    tx: UnboundedSender<ROSTopicRequest>, 
+    tx: UnboundedSender<ROSTopicRequest>,
 }
 
 
@@ -39,8 +39,7 @@ async fn root() -> &'static str {
 #[axum_macros::debug_handler]
 // basic handler that responds with a static string
 async fn handle_ros_topic(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<ROSTopicRequest>,
+    State(state): State<Arc<AppState>>, Json(payload): Json<ROSTopicRequest>,
 ) -> impl IntoResponse {
     info!("received {:?}", payload);
     state.tx.send(payload).expect("state sent failure");
@@ -55,11 +54,10 @@ async fn handle_ros_topic(
 }
 
 
-pub async fn ros_api_server(
-    topic_request_tx: UnboundedSender<ROSTopicRequest>, 
-) {
-
-    let app_state = Arc::new(AppState { tx: topic_request_tx });
+pub async fn ros_api_server(topic_request_tx: UnboundedSender<ROSTopicRequest>) {
+    let app_state = Arc::new(AppState {
+        tx: topic_request_tx,
+    });
     // build our application with a route
     let app = Router::new()
         .route("/", get(root))
