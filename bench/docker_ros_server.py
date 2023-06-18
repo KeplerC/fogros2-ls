@@ -9,7 +9,6 @@ def send_request(
     ip = "localhost", 
     port = "3000"
 ):
-    sleep(2)
     ros_topic = {
         "api_op": api_op,
         "ros_op": ros_op,

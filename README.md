@@ -37,7 +37,7 @@ FogROS2-SGC is a cloud robotics platform for connecting disjoint ROS2 networks a
 
 Refactor 
 [x] make topic_creator a separate thread that handles all pubsub
-[] one ROS node for all topics 
+[x] one ROS node for all topics 
 [] remove a topic by removing the future of the polling topic 
 [] stoppable ROS future (connect as a publisher, but doesn't publish/susbcribe to the actual topic); needs to request to actually start and stop 
 [] internal multicast
