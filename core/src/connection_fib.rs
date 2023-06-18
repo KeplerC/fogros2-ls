@@ -11,9 +11,10 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum FibChangeAction {
     ADD,
-    PAUSE,
+    PAUSE, // pausing the forwarding of the topic, keeping connections alive
     PAUSEADD, // adding the entry to FIB, but keeps it paused
-    DELETE,
+    RESUME, // resume a paused topic
+    DELETE, // deleting a local topic interface and all its connections 
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, Hash)]
@@ -97,13 +98,19 @@ pub async fn connection_fib_handler(
                         };
                         // TODO: pause add
                     },
-                    FibChangeAction::PAUSE => {
-                        //todo pause
-                    },
                     FibChangeAction::PAUSEADD => {
                         //todo pause
                     },
-                    FibChangeAction::DELETE => todo!(),
+                    FibChangeAction::PAUSE => {
+                        //todo pause
+                    },
+                    FibChangeAction::RESUME => {
+                        //todo pause
+                    },
+                    FibChangeAction::DELETE => {
+                        info!("Deleting GDP Name {:?}", update.topic_gdp_name);
+                        rib_state_table.remove(&update.topic_gdp_name);
+                    },
                 }
             }
         }

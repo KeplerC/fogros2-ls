@@ -61,7 +61,7 @@ pub async fn ros_api_server(topic_request_tx: UnboundedSender<ROSTopicRequest>) 
     // build our application with a route
     let app = Router::new()
         .route("/", get(root))
-        .route("/add", post(handle_ros_topic))
+        .route("/topic", post(handle_ros_topic))
         .with_state(app_state);
 
     // run our app with hyper

@@ -53,6 +53,8 @@ Optimizations
 [x] delete by deleting topics instead of killing threads 
 [] kill the thread when not using it
 [] alias (repulish) for local topics 
+[] save the current topic file locally or at some singleton, support `ls` operation 
+[] delete command does not require to specify the direction (shouldn't it?)
 
 ## Local Demo 
 If you want to get a taste of FogROS2 SGC without setting up the environment, just run 
