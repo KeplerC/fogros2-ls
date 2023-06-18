@@ -1,4 +1,5 @@
 use crate::api_server::ROSTopicRequest;
+use crate::connection_fib::connection_fib_handler;
 #[cfg(feature = "ros")]
 use crate::network::ros::{ros_publisher, ros_subscriber};
 #[cfg(feature = "ros")]
@@ -40,6 +41,18 @@ pub async fn ros_topic_remote_publisher_handler(
     mut status_recv: UnboundedReceiver<NewTopicConnectionRequest>,
 ) {
 
+    let mut join_handles = vec!();
+
+    let (fib_tx, fib_rx) = mpsc::unbounded_channel();
+    let (channel_tx, channel_rx) = mpsc::unbounded_channel();
+    let fib_handle = tokio::spawn(
+        async move {
+            connection_fib_handler(fib_rx, channel_rx).await;
+        }
+    );
+    join_handles.push(fib_handle);
+
+
     let ctx = r2r::Context::create().expect("context creation failure");
     let mut node = Arc::new(Mutex::new(r2r::Node::create(ctx, "sgc_remote_publisher", "namespace").expect("node creation failure")));
     
@@ -51,7 +64,6 @@ pub async fn ros_topic_remote_publisher_handler(
             }
         }
     );
-    let mut join_handles = vec!();
 
 
     loop{
@@ -64,6 +76,7 @@ pub async fn ros_topic_remote_publisher_handler(
                 let stream = request.stream; 
                 let node_name = "doesntmatter".to_owned();
                 let manager_node = node.clone();
+                let fib_tx = fib_tx.clone();
                 let node_gdp_name = GDPName(get_gdp_name_from_topic(
                     &node_name,
                     &topic_type,
@@ -79,9 +92,11 @@ pub async fn ros_topic_remote_publisher_handler(
                     "[ros_topic_remote_publisher_handler] topic creator for topic {}, type {}, action {}",
                     topic_name, topic_type, action
                 );
+
+                // ROS subscriber -> FIB -> RTC
                 let (ros_tx, ros_rx) = mpsc::unbounded_channel();
                 let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
-                let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx));
+                let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx)); //ros_tx not used, no need to transmit to ROS
                 join_handles.push(rtc_handle);
             
                 let mut subscriber = manager_node.lock().unwrap()
@@ -90,10 +105,10 @@ pub async fn ros_topic_remote_publisher_handler(
                 let ros_handle = tokio::spawn(async move {
                     info!("ROS handling loop has started!");
                     while let Some(packet) = subscriber.next().await {
-                        info!("received a packet {:?}", packet);
+                        info!("received a ROS packet {:?}", packet);
                         let ros_msg = packet;
                         let packet = construct_gdp_forward_from_bytes(topic_gdp_name, node_gdp_name, ros_msg );
-                        rtc_tx.send(packet).expect("send for ros subscriber failure");
+                        fib_tx.send(packet).expect("send for ros subscriber failure");
                     }
                 });
                 join_handles.push(ros_handle);
@@ -146,7 +161,7 @@ pub async fn ros_topic_remote_subscriber_handler(
                 );
                 let (ros_tx, mut ros_rx) = mpsc::unbounded_channel();
                 let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
-                let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx));
+                let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx)); 
                 join_handles.push(rtc_handle);
             
                 info!("before creating ros publisher"); 

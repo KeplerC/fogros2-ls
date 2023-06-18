@@ -49,7 +49,7 @@ controller (separate repo)
 
 Optimizations  
 [] create one ROS subscriber thread per topic 
-[] One ros node for all the topics (need to rearchitect, but important)
+[x] One ros node for all the topics (need to rearchitect, but important)
 [] delete by deleting topics instead of killing threads 
 [] alias (repulish) for local topics 
 
