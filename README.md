@@ -38,10 +38,10 @@ FogROS2-SGC is a cloud robotics platform for connecting disjoint ROS2 networks a
 Refactor 
 [x] make topic_creator a separate thread that handles all pubsub
 [x] one ROS node for all topics 
-[] remove a topic by removing the future of the polling topic 
+[x] remove a topic by removing the future of the polling topic 
 [x] stoppable ROS future (connect as a publisher, but doesn't publish/susbcribe to the actual topic); needs to request to actually start and stop 
 [x] internal multicast
-[] create one ROS subscriber thread per topic 
+[x] create one ROS subscriber thread per topic 
 
 controller (separate repo)
 [] Put topic scanning as a separate program to replace `automatic.toml`
@@ -55,6 +55,7 @@ Optimizations
 [] alias (repulish) for local topics 
 [] save the current topic file locally or at some singleton, support `ls` operation 
 [] delete command does not require to specify the direction (shouldn't it?)
+[] pause and pauseadd
 
 ## Local Demo 
 If you want to get a taste of FogROS2 SGC without setting up the environment, just run 

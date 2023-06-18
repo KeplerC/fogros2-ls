@@ -7,7 +7,7 @@ from time import sleep
 #     PAUSE, // pausing the forwarding of the topic, keeping connections alive
 #     PAUSEADD, // adding the entry to FIB, but keeps it paused
 #     RESUME, // resume a paused topic
-#     DELETE, // deleting a local topic interface and all its connections 
+#     DELETE, // deleting a local topic interface and all its network connections 
 # }
 
 
@@ -30,21 +30,25 @@ def send_request(
     # Create a new resource
     response = requests.post(uri, json = ros_topic)
     print(response)
- 
+
+
+talker_machine = "fogros2-sgc-lite-listener-1"
+listener_machine = "fogros2-sgc-lite-talker-1"
+
 print("adding listener")
-send_request("add", "pub", ip = "fogros2-sgc-lite-listener-1")
+send_request("add", "pub", ip = listener_machine)
 
 print("adding talker")
-send_request("add", "sub", ip = "fogros2-sgc-lite-talker-1")
+send_request("add", "sub", ip = talker_machine)
 
 sleep(5)
 
 print("remove the topic of talker's published topic")
-send_request("del", "sub", ip = "fogros2-sgc-lite-talker-1")
+send_request("del", "sub", ip = talker_machine)
 
 sleep(5)
 print("adding it back")
-send_request("add", "sub", ip = "fogros2-sgc-lite-talker-1")
+send_request("add", "sub", ip = talker_machine)
 
 
 # for i in range(10):
