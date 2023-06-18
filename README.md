@@ -39,8 +39,9 @@ Refactor
 [x] make topic_creator a separate thread that handles all pubsub
 [x] one ROS node for all topics 
 [] remove a topic by removing the future of the polling topic 
-[] stoppable ROS future (connect as a publisher, but doesn't publish/susbcribe to the actual topic); needs to request to actually start and stop 
-[] internal multicast
+[x] stoppable ROS future (connect as a publisher, but doesn't publish/susbcribe to the actual topic); needs to request to actually start and stop 
+[x] internal multicast
+[] create one ROS subscriber thread per topic 
 
 controller (separate repo)
 [] Put topic scanning as a separate program to replace `automatic.toml`
@@ -48,9 +49,9 @@ controller (separate repo)
 [] well defined crypto per topic
 
 Optimizations  
-[] create one ROS subscriber thread per topic 
 [x] One ros node for all the topics (need to rearchitect, but important)
-[] delete by deleting topics instead of killing threads 
+[x] delete by deleting topics instead of killing threads 
+[] kill the thread when not using it
 [] alias (repulish) for local topics 
 
 ## Local Demo 
