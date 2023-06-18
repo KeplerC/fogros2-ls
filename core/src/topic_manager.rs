@@ -65,6 +65,7 @@ pub async fn ros_topic_remote_publisher_handler(
             .spin_once(std::time::Duration::from_millis(100));
     });
 
+    let mut existing_topics = vec!();
 
     loop {
         tokio::select! {
@@ -112,19 +113,24 @@ pub async fn ros_topic_remote_publisher_handler(
                 let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx)); //ros_tx not used, no need to transmit to ROS
                 join_handles.push(rtc_handle);
 
-                let mut subscriber = manager_node.lock().unwrap()
-                .subscribe_untyped(&topic_name, &topic_type, r2r::QosProfile::default())
-                .expect("topic subscribing failure");
-                let ros_handle = tokio::spawn(async move {
-                    info!("ROS handling loop has started!");
-                    while let Some(packet) = subscriber.next().await {
-                        info!("received a ROS packet {:?}", packet);
-                        let ros_msg = packet;
-                        let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, ros_msg );
-                        fib_tx.send(packet).expect("send for ros subscriber failure");
-                    }
-                });
-                join_handles.push(ros_handle);
+                if existing_topics.contains(&topic_gdp_name) {
+                    info!("topic {:?} already exists in existing topics; don't need to create another subscriber", topic_gdp_name);
+                } else {
+                    existing_topics.push(topic_gdp_name);
+                    let mut subscriber = manager_node.lock().unwrap()
+                    .subscribe_untyped(&topic_name, &topic_type, r2r::QosProfile::default())
+                    .expect("topic subscribing failure");
+                    let ros_handle = tokio::spawn(async move {
+                        info!("ROS handling loop has started!");
+                        while let Some(packet) = subscriber.next().await {
+                            info!("received a ROS packet {:?}", packet);
+                            let ros_msg = packet;
+                            let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, ros_msg );
+                            fib_tx.send(packet).expect("send for ros subscriber failure");
+                        }
+                    });
+                    join_handles.push(ros_handle);
+                }   
             }
         }
     }
@@ -158,6 +164,9 @@ pub async fn ros_topic_remote_subscriber_handler(
             .unwrap()
             .spin_once(std::time::Duration::from_millis(100));
     });
+
+
+    let mut existing_topics = vec!();
 
     loop {
         tokio::select! {
@@ -208,30 +217,34 @@ pub async fn ros_topic_remote_subscriber_handler(
                 let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, fib_tx.clone(), rtc_rx));
                 join_handles.push(rtc_handle);
 
-                info!("before creating ros publisher");
-                let mut publisher = manager_node.lock().unwrap()
-                .create_publisher_untyped(&topic_name, &topic_type, r2r::QosProfile::default())
-                .expect("topic publisher create failure");
-                info!("ros publisher create successfully");
+                if existing_topics.contains(&topic_gdp_name) {
+                    info!("topic {:?} already exists in existing topics; don't need to create another publisher", topic_gdp_name);
+                } else {
+                    existing_topics.push(topic_gdp_name);
+                    let mut publisher = manager_node.lock().unwrap()
+                    .create_publisher_untyped(&topic_name, &topic_type, r2r::QosProfile::default())
+                    .expect("topic publisher create failure");
 
-                let ros_handle = tokio::spawn(async move {
-                    info!("[ros_topic_remote_subscriber_handler] ROS handling loop has started!");
-                    while let pkt_to_forward = ros_rx.recv().await.unwrap() {
-                        info!("[ros_topic_remote_subscriber_handler] received a packet {:?}", pkt_to_forward);
-                        if pkt_to_forward.action == GdpAction::Forward {
-                            info!("new payload to publish");
-                            if pkt_to_forward.gdpname == topic_gdp_name {
-                                let payload = pkt_to_forward.get_byte_payload().unwrap();
-                                //let ros_msg = serde_json::from_str(str::from_utf8(payload).unwrap()).expect("json parsing failure");
-                                // info!("the decoded payload to publish is {:?}", ros_msg);
-                                publisher.publish(payload.clone()).unwrap();
-                            } else{
-                                info!("{:?} received a packet for name {:?}",pkt_to_forward.gdpname, topic_gdp_name);
+                    let ros_handle = tokio::spawn(async move {
+                        info!("[ros_topic_remote_subscriber_handler] ROS handling loop has started!");
+                        while let pkt_to_forward = ros_rx.recv().await.unwrap() {
+                            info!("[ros_topic_remote_subscriber_handler] received a packet {:?}", pkt_to_forward);
+                            if pkt_to_forward.action == GdpAction::Forward {
+                                info!("new payload to publish");
+                                if pkt_to_forward.gdpname == topic_gdp_name {
+                                    let payload = pkt_to_forward.get_byte_payload().unwrap();
+                                    //let ros_msg = serde_json::from_str(str::from_utf8(payload).unwrap()).expect("json parsing failure");
+                                    // info!("the decoded payload to publish is {:?}", ros_msg);
+                                    publisher.publish(payload.clone()).unwrap();
+                                } else{
+                                    info!("{:?} received a packet for name {:?}",pkt_to_forward.gdpname, topic_gdp_name);
+                                }
                             }
                         }
-                    }
-                });
-                join_handles.push(ros_handle);
+                    });
+                    join_handles.push(ros_handle);
+                }
+                
             }
         }
     }
