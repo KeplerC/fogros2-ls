@@ -51,6 +51,8 @@ pub async fn ros_topic_remote_publisher_handler(
             }
         }
     );
+    let mut join_handles = vec!();
+
 
     loop{
         tokio::select! {
@@ -79,13 +81,14 @@ pub async fn ros_topic_remote_publisher_handler(
                 );
                 let (ros_tx, ros_rx) = mpsc::unbounded_channel();
                 let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
-                tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx));
+                let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx));
+                join_handles.push(rtc_handle);
             
                 let mut subscriber = manager_node.lock().unwrap()
                 .subscribe_untyped(&topic_name, &topic_type, r2r::QosProfile::default())
                 .expect("topic subscribing failure");
-                tokio::spawn(async move {
-
+                let ros_handle = tokio::spawn(async move {
+                    info!("ROS handling loop has started!");
                     while let Some(packet) = subscriber.next().await {
                         info!("received a packet {:?}", packet);
                         let ros_msg = packet;
@@ -93,6 +96,7 @@ pub async fn ros_topic_remote_publisher_handler(
                         rtc_tx.send(packet).expect("send for ros subscriber failure");
                     }
                 });
+                join_handles.push(ros_handle);
             }
         }
     }
@@ -113,6 +117,7 @@ pub async fn ros_topic_remote_subscriber_handler(
             }
         }
     );
+    let mut join_handles = vec!();
 
     loop{
         tokio::select! {
@@ -141,13 +146,15 @@ pub async fn ros_topic_remote_subscriber_handler(
                 );
                 let (ros_tx, mut ros_rx) = mpsc::unbounded_channel();
                 let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
-                tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx));
+                let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx));
+                join_handles.push(rtc_handle);
             
                 let mut publisher = manager_node.lock().unwrap()
                 .create_publisher_untyped(&topic_name, &topic_type, r2r::QosProfile::default())
                 .expect("topic publisher create failure");
 
-                tokio::spawn(async move {
+                let ros_handle = tokio::spawn(async move {
+                    info!("ROS handling loop has started!");
                     while let Some(pkt_to_forward) = ros_rx.recv().await {
                         info!("received a packet {:?}", pkt_to_forward);
                         if pkt_to_forward.action == GdpAction::Forward {
@@ -163,6 +170,7 @@ pub async fn ros_topic_remote_subscriber_handler(
                         }
                     }
                 });
+                join_handles.push(ros_handle);
             }
         }
     }
