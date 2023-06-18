@@ -256,7 +256,11 @@ pub async fn webrtc_reader_and_writer(
 
                     if deserialized.action == GdpAction::Forward {
                         let packet = construct_gdp_forward_from_bytes(deserialized.destination, thread_name, payload);
-                        ros_tx.send(packet).unwrap();
+                        match ros_tx.send(packet) {
+                            Ok(_) => {},
+                            Err(_) => {error!("webrtc thread to ROS thread send failure");},
+                        }
+                        
                         // proc_gdp_packet(packet,  // packet
                         //     &fib_tx,  //used to send packet to fib
                         //     &channel_tx, // used to send GDPChannel to fib
@@ -264,7 +268,6 @@ pub async fn webrtc_reader_and_writer(
                         //     &rib_query_tx,
                         //     "".to_string(),
                         // ).await;
-                        info!("todo to be forwarded");
                     }
                     else{
                         info!("TCP received a packet but did not handle: {:?}", deserialized)

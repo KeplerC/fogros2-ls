@@ -149,16 +149,18 @@ pub async fn ros_topic_remote_subscriber_handler(
                 let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx));
                 join_handles.push(rtc_handle);
             
+                info!("before creating ros publisher"); 
                 let mut publisher = manager_node.lock().unwrap()
                 .create_publisher_untyped(&topic_name, &topic_type, r2r::QosProfile::default())
                 .expect("topic publisher create failure");
-
+                info!("ros publisher create successfully"); 
+                
                 let ros_handle = tokio::spawn(async move {
-                    info!("ROS handling loop has started!");
-                    while let Some(pkt_to_forward) = ros_rx.recv().await {
-                        info!("received a packet {:?}", pkt_to_forward);
+                    info!("[ros_topic_remote_subscriber_handler] ROS handling loop has started!");
+                    while let pkt_to_forward = ros_rx.recv().await.unwrap() {
+                        info!("[ros_topic_remote_subscriber_handler] received a packet {:?}", pkt_to_forward);
                         if pkt_to_forward.action == GdpAction::Forward {
-                            info!("new payload to publish ");
+                            info!("new payload to publish");
                             if pkt_to_forward.gdpname == topic_gdp_name {
                                 let payload = pkt_to_forward.get_byte_payload().unwrap();
                                 //let ros_msg = serde_json::from_str(str::from_utf8(payload).unwrap()).expect("json parsing failure");
@@ -506,10 +508,12 @@ pub async fn ros_topic_manager(
             ros_topic_remote_publisher_handler(publisher_operation_rx).await;
         }
     );
+    waiting_rib_handles.push(topic_creator_handle);
+    
     let (subscriber_operation_tx, subscriber_operation_rx) = mpsc::unbounded_channel();
     let topic_creator_handle = tokio::spawn(
         async move {
-            ros_topic_remote_publisher_handler(subscriber_operation_rx).await;
+            ros_topic_remote_subscriber_handler(subscriber_operation_rx).await;
         }
     );
     waiting_rib_handles.push(topic_creator_handle);
