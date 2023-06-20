@@ -1,7 +1,6 @@
 use crate::api_server::ROSTopicRequest;
 use crate::connection_fib::connection_fib_handler;
-#[cfg(feature = "ros")]
-use crate::network::ros::{ros_publisher, ros_subscriber};
+
 #[cfg(feature = "ros")]
 use crate::network::webrtc::{register_webrtc_stream, webrtc_reader_and_writer};
 
@@ -13,18 +12,18 @@ use crate::structs::{
 
 use crate::connection_fib::{FibChangeAction, FibStateChange};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+
 use std::sync::{Arc, Mutex};
 use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio_util::sync::CancellationToken;
+
 
 use crate::db::*;
-use futures::{StreamExt, TryFutureExt};
+use futures::{StreamExt};
 use redis_async::{client, resp::FromResp};
-use tokio::process::Command;
+
 use tokio::sync::mpsc::{self};
-use tokio::time::sleep;
+
 use tokio::time::Duration;
 use utils::app_config::AppConfig;
 
@@ -52,7 +51,7 @@ pub async fn ros_topic_remote_publisher_handler(
 
 
     let ctx = r2r::Context::create().expect("context creation failure");
-    let mut node = Arc::new(Mutex::new(
+    let node = Arc::new(Mutex::new(
         r2r::Node::create(ctx, "sgc_remote_publisher", "namespace").expect("node creation failure"),
     ));
 
@@ -87,7 +86,7 @@ pub async fn ros_topic_remote_publisher_handler(
                         topic_gdp_name: topic_gdp_name,
                         forward_destination: None,
                     };
-                    channel_tx.send(channel_update_msg);
+                    let _ = channel_tx.send(channel_update_msg);
                     continue;
                 }
 
@@ -100,14 +99,14 @@ pub async fn ros_topic_remote_publisher_handler(
                 );
 
                 // ROS subscriber -> FIB -> RTC
-                let (ros_tx, ros_rx) = mpsc::unbounded_channel();
+                let (ros_tx, _ros_rx) = mpsc::unbounded_channel();
                 let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
                 let channel_update_msg = FibStateChange {
                     action: FibChangeAction::ADD,
                     topic_gdp_name: topic_gdp_name,
                     forward_destination: Some(rtc_tx),
                 };
-                channel_tx.send(channel_update_msg);
+                let _ = channel_tx.send(channel_update_msg);
 
 
                 let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx)); //ros_tx not used, no need to transmit to ROS
@@ -151,7 +150,7 @@ pub async fn ros_topic_remote_subscriber_handler(
 
 
     let ctx = r2r::Context::create().expect("context creation failure");
-    let mut node = Arc::new(Mutex::new(
+    let node = Arc::new(Mutex::new(
         r2r::Node::create(ctx, "sgc_remote_subscriber", "namespace")
             .expect("node creation failure"),
     ));
@@ -188,7 +187,7 @@ pub async fn ros_topic_remote_subscriber_handler(
                         topic_gdp_name: topic_gdp_name,
                         forward_destination: None,
                     };
-                    channel_tx.send(channel_update_msg);
+                    let _ = channel_tx.send(channel_update_msg);
                     continue;
                 }
 
@@ -204,14 +203,14 @@ pub async fn ros_topic_remote_subscriber_handler(
 
                 // RTC -> FIB -> ROS publisher
                 let (ros_tx, mut ros_rx) = mpsc::unbounded_channel();
-                let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
+                let (_rtc_tx, rtc_rx) = mpsc::unbounded_channel();
 
                 let channel_update_msg = FibStateChange {
                     action: FibChangeAction::ADD,
                     topic_gdp_name: topic_gdp_name,
                     forward_destination: Some(ros_tx),
                 };
-                channel_tx.send(channel_update_msg);
+                let _ = channel_tx.send(channel_update_msg);
 
 
                 let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, fib_tx.clone(), rtc_rx));
@@ -221,7 +220,7 @@ pub async fn ros_topic_remote_subscriber_handler(
                     info!("topic {:?} already exists in existing topics; don't need to create another publisher", topic_gdp_name);
                 } else {
                     existing_topics.push(topic_gdp_name);
-                    let mut publisher = manager_node.lock().unwrap()
+                    let publisher = manager_node.lock().unwrap()
                     .create_publisher_untyped(&topic_name, &topic_type, r2r::QosProfile::default())
                     .expect("topic publisher create failure");
 
@@ -312,7 +311,7 @@ async fn create_new_remote_publisher(
                 topic_type: topic_type_clone,
                 certificate: certificate_clone,
             };
-            topic_operation_tx.send(topic_creator_request);
+            let _ = topic_operation_tx.send(topic_creator_request);
         })
     });
     let mut tasks = tasks.collect::<Vec<_>>();
@@ -364,7 +363,7 @@ async fn create_new_remote_publisher(
                     let topic_name_clone = topic_name.clone();
                     let topic_type_clone = topic_type.clone();
                     let certificate_clone = certificate.clone();
-                    let publisher_topic = publisher_topic.clone();
+                    let _publisher_topic = publisher_topic.clone();
                     let topic_operation_tx = topic_operation_tx.clone();
                     let topic_creator_request = TopicModificationRequest {
                         action: FibChangeAction::ADD,
@@ -373,7 +372,7 @@ async fn create_new_remote_publisher(
                         topic_type: topic_type_clone,
                         certificate: certificate_clone,
                     };
-                    topic_operation_tx.send(topic_creator_request);
+                    let _ = topic_operation_tx.send(topic_creator_request);
                 }
                 None => {
                     info!("message is none");
@@ -484,7 +483,7 @@ async fn create_new_remote_subscriber(
                 topic_type: topic_type_clone,
                 certificate: certificate_clone,
             };
-            topic_operation_tx.send(topic_creator_request);
+            let _ = topic_operation_tx.send(topic_creator_request);
         })
     });
 
@@ -542,7 +541,7 @@ async fn create_new_remote_subscriber(
                             topic_type: topic_type_clone,
                             certificate:certificate_clone,
                         };
-                        topic_operation_tx.send(topic_creator_request);
+                        let _ = topic_operation_tx.send(topic_creator_request);
                     },
                     Err(e) => {
                         eprintln!("ERROR: {}", e);
@@ -656,7 +655,7 @@ pub async fn ros_topic_manager(mut topic_request_rx: UnboundedReceiver<ROSTopicR
                                     topic_type: payload.topic_type,
                                     certificate: certificate.clone(),
                                 };
-                                topic_operation_tx.send(topic_creator_request);
+                                let _ = topic_operation_tx.send(topic_creator_request);
 
                             }, 
                             "pub" => {
@@ -668,7 +667,7 @@ pub async fn ros_topic_manager(mut topic_request_rx: UnboundedReceiver<ROSTopicR
                                     topic_type: payload.topic_type,
                                     certificate: certificate.clone(),
                                 };
-                                topic_operation_tx.send(topic_creator_request);
+                                let _ = topic_operation_tx.send(topic_creator_request);
                             }
                             _ => {
                                 warn!("unknown action {}", payload.ros_op);

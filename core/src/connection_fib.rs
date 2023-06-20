@@ -1,7 +1,6 @@
-use crate::structs::GDPNameRecordType::*;
+
 use crate::{
-    pipeline::{construct_gdp_advertisement_from_structs, construct_rib_query_from_bytes},
-    structs::{GDPName, GDPNameRecord, GDPPacket, GDPStatus},
+    structs::{GDPName, GDPPacket},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -62,7 +61,7 @@ pub async fn connection_fib_handler(
                     Some(s) => {
                         if s.state == TopicStateInFIB::RUNNING {
                             for dst in &s.receivers {
-                                dst.send(pkt.clone());
+                                let _ = dst.send(pkt.clone());
                             }
                         } else {
                             warn!("the current topic state is {:?}, not forwarded", topic_state)
@@ -283,32 +282,4 @@ pub async fn connection_fib_handler(
 //                 Some(update) = stat_rs.recv() => {
 //                     // Note: incomplete implementation, only support flushing advertisement
 //                     let dst = update.sink;
-//                     for (name, _channel) in &coonection_rib_table {
-//                         info!("flushing advertisement for {} to {:?}", name, dst);
-//                         let packet = construct_gdp_advertisement_from_structs(
-//                             *name,
-//                             *name,
-//                             GDPNameRecord{
-//                                 record_type: UPDATE,
-//                                 gdpname: *name,
-//                                 source_gdpname: *name,
-//                                 webrtc_offer: None,
-//                                 ip_address: None,
-//                                 indirect: None,
-//                                 ros:None,
-//                             }
-//                         );
-
-//                         let result = dst.send(packet.clone());
-//                         match result {
-//                             Ok(_) => {}
-//                             Err(_) => {
-//                                 warn!("Send Failure: channel sent to destination is closed");
-//                             }
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-//     });
-// }
+//    
