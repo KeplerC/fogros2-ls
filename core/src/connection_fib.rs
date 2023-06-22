@@ -81,6 +81,7 @@ pub async fn connection_fib_handler(
 
                         match  rib_state_table.get_mut(&update.topic_gdp_name) {
                             Some(v) => {
+                                v.state = TopicStateInFIB::RUNNING;
                                 v.receivers.push(update.forward_destination.unwrap());
                             }
                             None =>{
@@ -108,7 +109,15 @@ pub async fn connection_fib_handler(
                     },
                     FibChangeAction::DELETE => {
                         info!("Deleting GDP Name {:?}", update.topic_gdp_name);
-                        rib_state_table.remove(&update.topic_gdp_name);
+                        // rib_state_table.remove(&update.topic_gdp_name);
+                        match  rib_state_table.get_mut(&update.topic_gdp_name) {
+                            Some(v) => {
+                                v.state = TopicStateInFIB::DELETED;
+                            }
+                            None =>{
+                                error!("deleting non existing state!");
+                            }
+                        };
                     },
                 }
             }

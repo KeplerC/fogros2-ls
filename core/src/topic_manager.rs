@@ -228,8 +228,8 @@ pub async fn ros_topic_remote_subscriber_handler(
 
                     let ros_handle = tokio::spawn(async move {
                         info!("[ros_topic_remote_subscriber_handler] ROS handling loop has started!");
-                        while let pkt_to_forward = ros_rx.recv().await.unwrap() {
-                            // info!("[ros_topic_remote_subscriber_handler] received a packet {:?}", pkt_to_forward);
+                        loop{
+                            let pkt_to_forward = ros_rx.recv().await.expect("ros_topic_remote_subscriber_handler crashed!!");
                             if pkt_to_forward.action == GdpAction::Forward {
                                 info!("new payload to publish");
                                 if pkt_to_forward.gdpname == topic_gdp_name {
