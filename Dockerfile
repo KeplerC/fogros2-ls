@@ -38,7 +38,7 @@ WORKDIR /app/scripts
 RUN bash ./generate_crypto.sh
 # build app
 WORKDIR /app
-RUN . /opt/ros/humble/setup.sh && cargo build 
+RUN . /opt/ros/humble/setup.sh && cargo build
 
 # build the final image
 FROM chef

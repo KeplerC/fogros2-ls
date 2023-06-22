@@ -6,6 +6,7 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
@@ -64,9 +65,16 @@ pub async fn ros_api_server(topic_request_tx: UnboundedSender<ROSTopicRequest>) 
         .route("/topic", post(handle_ros_topic))
         .with_state(app_state);
 
+        let api_port = match env::var_os("SGC_API_PORT") {
+            Some(port) => {
+                port.into_string().unwrap().parse().unwrap()
+            }
+            None => 3000
+        };
+
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], api_port));
     tracing::debug!("listening on {}", addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())

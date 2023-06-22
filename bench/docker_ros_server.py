@@ -10,45 +10,92 @@ from time import sleep
 #     DELETE, // deleting a local topic interface and all its network connections 
 # }
 
+class Topic: 
+    def __init__(self, name, type, action):
+        self.name = name
+        self.type = type 
+        self.action = action
+
+class Machine:
+    def __init__(self, address):
+        self.address = address
+
+def reverse_topics(topic_list):
+    ret = []
+    for topic in topic_list:
+        if topic.action == "sub":
+            action = "pub"
+        if topic.action == "pub":
+            action = "sub"
+        if topic.action == "noop":
+            action = "noop"
+        ret.append(Topic(
+            topic.name,
+            topic.type,
+            action
+        ))
+    return ret
 
 def send_request(
     api_op, 
-    ros_op = "noop",
-    topic = "/chatter",
-    type = "std_msgs/msg/String", 
-    ip = "localhost", 
-    port = "3000"
+    topic,
+    machine, 
 ):
     ros_topic = {
         "api_op": api_op,
-        "ros_op": ros_op,
+        "ros_op": topic.action,
         "crypto": "test_cert",
-        "topic_name": topic,
-        "topic_type": type,
+        "topic_name": topic.name,
+        "topic_type": topic.type,
     }
-    uri = f"http://{ip}:{port}/topic"
+    uri = f"http://{machine.address}/topic"
     # Create a new resource
     response = requests.post(uri, json = ros_topic)
     print(response)
 
+def add_topics_to_machine(topics, machine):
+    for topic in topics:
+        send_request("add", topic, machine)
+        # sleep(2)
 
-talker_machine = "fogros2-sgc-lite-listener-1"
-listener_machine = "fogros2-sgc-lite-talker-1"
+def remove_topics_from_machine(topics, machine):
+    for topic in topics:
+        send_request("del", topic, machine)
+        # sleep(2)
+        
+service_topics = [
+    Topic(
+    "/chatter", "std_msgs/msg/String", "sub"
+)]
 
-print("adding listener")
-send_request("add", "pub", ip = listener_machine)
+robot_topics = reverse_topics(service_topics)
 
-print("adding talker")
-send_request("add", "sub", ip = talker_machine)
+cloud = Machine("fogros2-sgc-lite-listener-1:3000")
+robot = Machine("fogros2-sgc-lite-talker-1:3000")
 
-sleep(5)
+add_topics_to_machine(service_topics, cloud)
+add_topics_to_machine(robot_topics, robot)
+input()
+remove_topics_from_machine(service_topics, cloud)
+remove_topics_from_machine(robot_topics, robot)
 
-print("remove the topic of talker's published topic")
-send_request("del", "sub", ip = talker_machine)
+# talker_machine = ""
+# listener_machine = ""
 
-sleep(5)
-print("adding it back")
-send_request("add", "sub", ip = talker_machine)
+# print("adding listener")
+# send_request("add", "pub", ip = listener_machine)
+
+# print("adding talker")
+# send_request("add", "sub", ip = talker_machine)
+
+# sleep(5)
+
+# print("remove the topic of talker's published topic")
+# send_request("del", "sub", ip = talker_machine)
+
+# sleep(5)
+# print("adding it back")
+# send_request("add", "sub", ip = talker_machine)
 
 
 # for i in range(10):

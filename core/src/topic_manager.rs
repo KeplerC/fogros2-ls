@@ -57,11 +57,12 @@ pub async fn ros_topic_remote_publisher_handler(
 
     let ros_manager_node_clone = node.clone();
     let _handle = tokio::task::spawn_blocking(move || loop {
+        std::thread::sleep(std::time::Duration::from_millis(100));
         ros_manager_node_clone
             .clone()
             .lock()
             .unwrap()
-            .spin_once(std::time::Duration::from_millis(100));
+            .spin_once(std::time::Duration::from_millis(10));
     });
 
     let mut existing_topics = vec!();
@@ -122,7 +123,7 @@ pub async fn ros_topic_remote_publisher_handler(
                     let ros_handle = tokio::spawn(async move {
                         info!("ROS handling loop has started!");
                         while let Some(packet) = subscriber.next().await {
-                            info!("received a ROS packet {:?}", packet);
+                            // info!("received a ROS packet {:?}", packet);
                             let ros_msg = packet;
                             let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, ros_msg );
                             fib_tx.send(packet).expect("send for ros subscriber failure");
@@ -157,11 +158,12 @@ pub async fn ros_topic_remote_subscriber_handler(
 
     let ros_manager_node_clone = node.clone();
     let _handle = tokio::task::spawn_blocking(move || loop {
+        std::thread::sleep(std::time::Duration::from_millis(100));
         ros_manager_node_clone
             .clone()
             .lock()
             .unwrap()
-            .spin_once(std::time::Duration::from_millis(100));
+            .spin_once(std::time::Duration::from_millis(10));
     });
 
 
@@ -227,7 +229,7 @@ pub async fn ros_topic_remote_subscriber_handler(
                     let ros_handle = tokio::spawn(async move {
                         info!("[ros_topic_remote_subscriber_handler] ROS handling loop has started!");
                         while let pkt_to_forward = ros_rx.recv().await.unwrap() {
-                            info!("[ros_topic_remote_subscriber_handler] received a packet {:?}", pkt_to_forward);
+                            // info!("[ros_topic_remote_subscriber_handler] received a packet {:?}", pkt_to_forward);
                             if pkt_to_forward.action == GdpAction::Forward {
                                 info!("new payload to publish");
                                 if pkt_to_forward.gdpname == topic_gdp_name {
@@ -585,7 +587,7 @@ pub async fn ros_topic_manager(mut topic_request_rx: UnboundedReceiver<ROSTopicR
     loop {
         select! {
             Some(payload) = topic_request_rx.recv() => {
-                info!("ros topic manager get payload: {:?}", payload);
+                // info!("ros topic manager get payload: {:?}", payload);
                 match payload.api_op.as_str() {
                     "add" => {
 
