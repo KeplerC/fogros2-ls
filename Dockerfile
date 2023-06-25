@@ -28,7 +28,7 @@ FROM chef AS sgc_builder
 
 WORKDIR /app
 COPY --from=planner /app/recipe.json recipe.json
-RUN . /opt/ros/humble/setup.sh && cargo chef cook --recipe-path recipe.json
+RUN . /opt/ros/humble/setup.sh && cargo chef cook --release --recipe-path recipe.json
 # to run with release mode, uncomment the following line
 # RUN . /opt/ros/humble/setup.sh cargo chef cook --release --recipe-path recipe.json
 
@@ -38,7 +38,7 @@ WORKDIR /app/scripts
 RUN bash ./generate_crypto.sh
 # build app
 WORKDIR /app
-RUN . /opt/ros/humble/setup.sh && cargo build
+RUN . /opt/ros/humble/setup.sh && cargo build --release
 
 # build the final image
 FROM chef
@@ -47,6 +47,6 @@ COPY --from=signal_builder  /app/target/release/sgc_signaling_server /signaling_
 COPY --from=sgc_builder /app/bench /fog_ws
 COPY --from=sgc_builder /app/src /src 
 COPY --from=sgc_builder /app/scripts /scripts
-COPY --from=sgc_builder /app/target/debug/gdp-router /
+COPY --from=sgc_builder /app/target/release/gdp-router /
 
 CMD [ "source /opt/ros/rolling/setup.bash; cargo run", "router" ]

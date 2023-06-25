@@ -20,7 +20,7 @@ class Machine:
     def __init__(self, address):
         self.address = address
 
-def reverse_topics(topic_list):
+def reverse_topic_direction(topic_list):
     ret = []
     for topic in topic_list:
         if topic.action == "sub":
@@ -51,7 +51,7 @@ def send_request(
     uri = f"http://{machine.address}/topic"
     # Create a new resource
     response = requests.post(uri, json = ros_topic)
-    print(response)
+    print(f"topic {topic.name} with operation {api_op} request sent with response {response}")
 
 def add_topics_to_machine(topics, machine):
     for topic in topics:
@@ -69,24 +69,28 @@ def remove_topics_from_machine(topics, machine):
 # ), Topic(
 #     "/offload_detection/scheduler_yolo/output/cloud", "sensor_msgs/msg/CompressedImage", "sub"
 # )]
+cloud_ip = "localhost"
+robot_ip = "localhost"
 
 service_topics = [
     Topic(
-    "/offload_detection/scheduler_yolo/input/cloud", "sensor_msgs/msg/CompressedImage", "pub"
+        "/offload_detection/scheduler_yolo/input/cloud", 
+        "sensor_msgs/msg/CompressedImage", 
+        "pub"
 ), Topic(
-    "/offload_detection/scheduler_yolo/output/cloud", "sensor_msgs/msg/CompressedImage", "sub"
+        "/offload_detection/scheduler_yolo/output/cloud", 
+        "sensor_msgs/msg/CompressedImage", 
+        "sub"
 )]
+robot_topics = reverse_topic_direction(service_topics)
 
-
-robot_topics = reverse_topics(service_topics)
-
-cloud = Machine("localhost:3001")
-robot = Machine("localhost:4001")
+cloud = Machine(f"{cloud_ip}:3001")
+robot = Machine(f"{robot_ip}:4001")
 
 while True:
     add_topics_to_machine(service_topics, cloud)
     add_topics_to_machine(robot_topics, robot)
-    input("ENTER to remove Topcs")
+    input("ENTER to remove Topics")
     remove_topics_from_machine(service_topics, cloud)
     remove_topics_from_machine(robot_topics, robot)
-    input("ENTER to add Topcs")
+    input("ENTER to add Topics")
