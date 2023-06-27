@@ -51,7 +51,7 @@ def send_request(
     uri = f"http://{machine.address}/topic"
     # Create a new resource
     response = requests.post(uri, json = ros_topic)
-    print(f"topic {topic.name} with operation {api_op} request sent with response {response}")
+    # print(f"topic {topic.name} with operation {api_op} request sent with response {response}")
 
 def add_topics_to_machine(topics, machine):
     for topic in topics:
@@ -69,8 +69,41 @@ def remove_topics_from_machine(topics, machine):
 # ), Topic(
 #     "/offload_detection/scheduler_yolo/output/cloud", "sensor_msgs/msg/CompressedImage", "sub"
 # )]
+# cloud_ip = "localhost"
+# robot_ip = "localhost"
+# cloud_ip = "128.32.37.48"
+# robot_ip = "128.32.37.48"
+
+# service_topics = [
+#     Topic(
+#         "/offload_detection/scheduler_yolo/input/cloud", 
+#         "sensor_msgs/msg/CompressedImage", 
+#         "pub"
+# ), Topic(
+#         "/offload_detection/scheduler_yolo/output/cloud", 
+#         "sensor_msgs/msg/CompressedImage", 
+#         "sub"
+# )]
+# robot_topics = reverse_topic_direction(service_topics)
+
+# cloud = Machine(f"{cloud_ip}:3001")
+# robot = Machine(f"{robot_ip}:4001")
+
+# while True:
+#     add_topics_to_machine(service_topics, cloud)
+#     add_topics_to_machine(robot_topics, robot)
+#     input("ENTER to remove Topics")
+#     remove_topics_from_machine(service_topics, cloud)
+#     remove_topics_from_machine(robot_topics, robot)
+#     input("ENTER to add Topics")
+
+
+
+
 cloud_ip = "localhost"
-robot_ip = "localhost"
+# robot_ip = "localhost"
+edge_ip = "128.32.37.48"
+robot_ip = "128.32.37.48"
 
 service_topics = [
     Topic(
@@ -85,12 +118,28 @@ service_topics = [
 robot_topics = reverse_topic_direction(service_topics)
 
 cloud = Machine(f"{cloud_ip}:3001")
-robot = Machine(f"{robot_ip}:4001")
+edge = Machine(f"{edge_ip}:3001")
 
+# note: currently with docker, directly connect
+# two containers doesn't work
+# this part is for demo only
+cloud_robot = Machine(f"{cloud_ip}:4001")
+edge_robot = Machine(f"{edge_ip}:4001")
+
+print("Running camera node on robot")
+add_topics_to_machine(robot_topics, cloud_robot)
+add_topics_to_machine(service_topics, cloud)
 while True:
-    add_topics_to_machine(service_topics, cloud)
-    add_topics_to_machine(robot_topics, robot)
-    input("ENTER to remove Topics")
+    input("ENTER to migrate to the edge")
+    add_topics_to_machine(service_topics, edge)
+    add_topics_to_machine(robot_topics, edge_robot)
     remove_topics_from_machine(service_topics, cloud)
-    remove_topics_from_machine(robot_topics, robot)
-    input("ENTER to add Topics")
+    remove_topics_from_machine(robot_topics, cloud_robot)
+
+    input("ENTER to migrate to the cloud")
+    add_topics_to_machine(service_topics, cloud)
+    add_topics_to_machine(robot_topics, cloud_robot)
+    remove_topics_from_machine(service_topics, edge)
+    remove_topics_from_machine(robot_topics, edge_robot)
+
+
