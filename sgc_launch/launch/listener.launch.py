@@ -1,3 +1,17 @@
+# Copyright 2022 The Regents of the University of California (Regents)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # Copyright ©2022. The Regents of the University of California (Regents).
 # All Rights Reserved. Permission to use, copy, modify, and distribute this
 # software and its documentation for educational, research, and not-for-profit
@@ -17,44 +31,20 @@
 # PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION TO PROVIDE
 # MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 
-import os
-from glob import glob
+from launch import LaunchDescription
+from launch_ros.actions import Node
 
-from setuptools import setup
 
-package_name = "bench"
+def generate_launch_description():
+    """Talker example that launches everything locally."""
+    ld = LaunchDescription()
 
-setup(
-    name=package_name,
-    version="0.0.1",
-    packages=[package_name],
-    data_files=[
-        (
-            "share/ament_index/resource_index/packages",
-            [os.path.join("resource", package_name)],
-        ),
-        (os.path.join("share", package_name), ["package.xml"]),
-        (os.path.join("share", package_name), glob("launch/*.launch.py")),
-    ],
-    install_requires=["setuptools"],
-    zip_safe=True,
-    author="Kaiyuan (Eric) Chen",
-    author_email="kych@berkeley.edu",
-    maintainer="Kaiyuan (Eric) Chen",
-    maintainer_email="kych@berkeley.edu",
-    description="TODO: Package description",
-    license="TODO: License declaration",
-    tests_require=["pytest"],
-    entry_points={
-        "console_scripts": [
-            "talker_image = bench.talker_image:main",
-            "listener_image = bench.listener_image:main",
-            "talker_latency = bench.talker_latency:main",
-            "listener_latency = bench.listener_latency:main",
-            "talker_throughput = bench.talker_throughput:main",
-            "listener_throughput = bench.listener_throughput:main",
-            "talker = bench.talker:main",
-            "listener = bench.listener:main",
-        ],
-    },
-)
+    listener_node = Node(
+        package="fogros2_examples", executable="listener", output="screen"
+    )
+    talker_node = Node(
+        package="fogros2_examples", executable="talker", output="screen"
+    )
+    ld.add_action(talker_node)
+    ld.add_action(listener_node)
+    return ld
