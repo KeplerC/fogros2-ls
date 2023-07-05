@@ -26,7 +26,6 @@ use redis_async::{client, resp::FromResp};
 use tokio::sync::mpsc::{self};
 
 use tokio::time::Duration;
-use utils::app_config::AppConfig;
 
 pub struct TopicModificationRequest {
     action: FibChangeAction,
@@ -562,21 +561,16 @@ pub struct RosTopicStatus {
 
 pub async fn ros_topic_manager(mut topic_request_rx: UnboundedReceiver<ROSTopicRequest>) {
     let mut waiting_rib_handles = vec![];
-    // get ros information from config file
-    let config = AppConfig::fetch().expect("Failed to fetch config");
-    // bookkeeping the status of ros topics
-    let _ros_topic_manager_gdp_name = generate_random_gdp_name();
 
+    // TODO: now it's hardcoded, make it changable later
+    let crypto_name = "";
     let crypto_path = match env::var_os("SGC_CRYPTO_PATH") {
         Some(config_file) => {
-            format!(
-                "{}/{}/{}-private.pem",
-                config_file.into_string().unwrap(), config.crypto_name, config.crypto_name
-            )
+            config_file.into_string().unwrap()
         },
         None => format!(
             "./scripts/crypto/{}/{}-private.pem",
-            config.crypto_name, config.crypto_name
+            crypto_name, crypto_name
         ),
     };
     
@@ -590,12 +584,11 @@ pub async fn ros_topic_manager(mut topic_request_rx: UnboundedReceiver<ROSTopicR
     });
     waiting_rib_handles.push(topic_creator_handle);
 
-    // This is because the ROS node creation is not thread safe 
-    // See: https://github.com/ros2/rosbag2/issues/329
-    std::thread::sleep(std::time::Duration::from_millis(500));
-
     let (subscriber_operation_tx, subscriber_operation_rx) = mpsc::unbounded_channel();
     let topic_creator_handle = tokio::spawn(async move {
+        // This is because the ROS node creation is not thread safe 
+        // See: https://github.com/ros2/rosbag2/issues/329
+        std::thread::sleep(std::time::Duration::from_millis(500));
         ros_topic_remote_subscriber_handler(subscriber_operation_rx).await;
     });
     waiting_rib_handles.push(topic_creator_handle);

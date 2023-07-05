@@ -11,9 +11,9 @@ def launch_sgc():
     # directory of all the config files
     config_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs"
     # directory of all the crypto files
-    crypto_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs/crypto"
+    crypto_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs/crypto/test_cert/test_cert-private.pem"
     # check if the crypto files are generated, if not, generate them
-    if not os.path.isfile(f"{crypto_path}/test_cert/test_cert-private.pem"):
+    if not os.path.isfile(crypto_path):
         print("crypto file does not exist, generating...")
         subprocess.call([f"cd {ws_path}/sgc_launch/share/sgc_launch/configs && ./generate_crypto.sh"],  shell=True)
     

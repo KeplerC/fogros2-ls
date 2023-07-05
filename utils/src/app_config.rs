@@ -6,35 +6,16 @@ use std::path::Path;
 use std::sync::RwLock;
 
 use super::error::Result;
-use crate::types::LogLevel;
 
 // CONFIG static variable. It's actually an AppConfig
 // inside an RwLock.
 lazy_static! {
     pub static ref CONFIG: RwLock<Config> = RwLock::new(Config::new());
 }
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Database {
-    pub url: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ROS {
-    pub action: String,
-    pub topic_name: String,
-    pub topic_type: String,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppConfig {
-    pub debug: bool,
-    pub log_level: LogLevel,
-    pub crypto_name: String,
     pub signaling_server_address: String,
     pub routing_information_base_address: String,
-    pub automatic_topic_discovery: bool,
-    pub ros: Vec<ROS>,
 }
 
 impl AppConfig {
