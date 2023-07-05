@@ -100,10 +100,7 @@ def remove_topics_from_machine(topics, machine):
 
 
 
-cloud_ip = "localhost"
-# robot_ip = "localhost"
-edge_ip = "128.32.37.48"
-robot_ip = "128.32.37.48"
+# 
 
 service_topics = [
     Topic(
@@ -117,29 +114,42 @@ service_topics = [
 )]
 robot_topics = reverse_topic_direction(service_topics)
 
-cloud = Machine(f"{cloud_ip}:3001")
-edge = Machine(f"{edge_ip}:3001")
+# cloud = Machine(f"{cloud_ip}:3001")
+# edge = Machine(f"{edge_ip}:3001")
+# robot = Machine(f"{robot_ip}:3001")
 
-# note: currently with docker, directly connect
-# two containers doesn't work
-# this part is for demo only
-cloud_robot = Machine(f"{cloud_ip}:4001")
-edge_robot = Machine(f"{edge_ip}:4001")
+# print("Running camera node on robot")
+# add_topics_to_machine(robot_topics, robot)
+# add_topics_to_machine(service_topics, cloud)
+# while True:
+#     input("ENTER to migrate to the edge")
+#     add_topics_to_machine(service_topics, edge)
+#     remove_topics_from_machine(service_topics, cloud)
 
-print("Running camera node on robot")
-add_topics_to_machine(robot_topics, cloud_robot)
-add_topics_to_machine(service_topics, cloud)
-while True:
-    input("ENTER to migrate to the edge")
-    add_topics_to_machine(service_topics, edge)
-    add_topics_to_machine(robot_topics, edge_robot)
-    remove_topics_from_machine(service_topics, cloud)
-    remove_topics_from_machine(robot_topics, cloud_robot)
+#     input("ENTER to migrate to the cloud")
+#     add_topics_to_machine(service_topics, cloud)
+#     remove_topics_from_machine(service_topics, edge)
 
-    input("ENTER to migrate to the cloud")
+
+sam_cloud_ip = "54.183.212.211"
+yolo_cloud_ip = "localhost"
+robot_ip = "128.32.37.48"
+
+cloud = Machine(f"{sam_cloud_ip}:3000")
+edge = Machine(f"{yolo_cloud_ip}:3000")
+robot = Machine(f"{robot_ip}:4001")
+
+add_topics_to_machine(robot_topics, robot)
+add_topics_to_machine(service_topics, edge)
+
+
+while True: 
+    input("ENTER to migrate to the cloud (SAM)")
     add_topics_to_machine(service_topics, cloud)
-    add_topics_to_machine(robot_topics, cloud_robot)
     remove_topics_from_machine(service_topics, edge)
-    remove_topics_from_machine(robot_topics, edge_robot)
+
+    input("ENTER to migrate to the edge (YOLO)")
+    add_topics_to_machine(service_topics, edge)
+    remove_topics_from_machine(service_topics, cloud)
 
 
