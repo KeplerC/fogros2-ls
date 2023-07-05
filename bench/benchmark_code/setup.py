@@ -22,7 +22,7 @@ from glob import glob
 
 from setuptools import setup
 
-package_name = "fogros2_sgc_examples"
+package_name = "bench"
 
 setup(
     name=package_name,
@@ -47,8 +47,12 @@ setup(
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
-            "talker = fogros2_examples.talker:main",
-            "listener = fogros2_examples.listener:main",
+            "talker_image = bench.talker_image:main",
+            "listener_image = bench.listener_image:main",
+            "talker_latency = bench.talker_latency:main",
+            "listener_latency = bench.listener_latency:main",
+            "talker_throughput = bench.talker_throughput:main",
+            "listener_throughput = bench.listener_throughput:main",
         ],
     },
 )
