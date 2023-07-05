@@ -590,6 +590,10 @@ pub async fn ros_topic_manager(mut topic_request_rx: UnboundedReceiver<ROSTopicR
     });
     waiting_rib_handles.push(topic_creator_handle);
 
+    // This is because the ROS node creation is not thread safe 
+    // See: https://github.com/ros2/rosbag2/issues/329
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
     let (subscriber_operation_tx, subscriber_operation_rx) = mpsc::unbounded_channel();
     let topic_creator_handle = tokio::spawn(async move {
         ros_topic_remote_subscriber_handler(subscriber_operation_rx).await;
