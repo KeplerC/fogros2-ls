@@ -31,14 +31,11 @@ fn main() -> Result<()> {
     // Initialize Configuration
     let include_path = match env::var_os("SGC_CONFIG") {
         Some(config_file) => {
-            format!(
-                "{}{}",
-                "./src/resources/",
-                config_file.into_string().unwrap()
-            )
+            config_file.into_string().unwrap()
         }
         None => "./src/resources/automatic.toml".to_owned(),
     };
+    
     println!("Using config file : {}", include_path);
     let config_contents = fs::read_to_string(include_path).expect("config file not found!");
 

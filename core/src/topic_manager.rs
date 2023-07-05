@@ -13,6 +13,7 @@ use crate::structs::{
 use crate::connection_fib::{FibChangeAction, FibStateChange};
 use serde::{Deserialize, Serialize};
 
+use std::env;
 use std::sync::{Arc, Mutex};
 use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -565,10 +566,21 @@ pub async fn ros_topic_manager(mut topic_request_rx: UnboundedReceiver<ROSTopicR
     let config = AppConfig::fetch().expect("Failed to fetch config");
     // bookkeeping the status of ros topics
     let _ros_topic_manager_gdp_name = generate_random_gdp_name();
-    let certificate = std::fs::read(format!(
-        "./scripts/crypto/{}/{}-private.pem",
-        config.crypto_name, config.crypto_name
-    ))
+
+    let crypto_path = match env::var_os("SGC_CRYPTO_PATH") {
+        Some(config_file) => {
+            format!(
+                "{}/{}/{}-private.pem",
+                config_file.into_string().unwrap(), config.crypto_name, config.crypto_name
+            )
+        },
+        None => format!(
+            "./scripts/crypto/{}/{}-private.pem",
+            config.crypto_name, config.crypto_name
+        ),
+    };
+    
+    let certificate = std::fs::read(crypto_path)
     .expect("crypto file not found!");
 
 
