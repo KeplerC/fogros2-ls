@@ -23,7 +23,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'sgc_node = sgc_launch.sgc_node:main'
+            'sgc_router = sgc_launch.sgc_node:main'
         ],
     },
 )
