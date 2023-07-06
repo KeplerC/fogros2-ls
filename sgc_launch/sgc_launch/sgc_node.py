@@ -1,6 +1,6 @@
 
 
-import subprocess, os
+import subprocess, os, yaml
 
 def launch_sgc():
     current_env = os.environ.copy()
@@ -22,6 +22,9 @@ def launch_sgc():
     # setup crypto path
     current_env["SGC_CRYPTO_PATH"] = f"{crypto_path}"
 
+    with open(f"{config_path}/talker.yaml", "r") as f:
+        print(yaml.safe_load(f)) 
+    return 
     # build and run SGC
     print("building FogROS SGC... It takes longer for first time")
     subprocess.call(f"cargo run --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)

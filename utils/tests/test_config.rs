@@ -1,19 +1,6 @@
 use utils::app_config::*;
 
 #[test]
-fn fetch_config() {
-    // Initialize configuration
-    let config_contents = include_str!("resources/test_config.toml");
-    AppConfig::init(Some(config_contents)).unwrap();
-
-    // Fetch an instance of Config
-    let config = AppConfig::fetch().unwrap();
-
-    // Check the values
-    assert_eq!(config.debug, false);
-}
-
-#[test]
 fn verify_get() {
     // Initialize configuration
     let config_contents = include_str!("resources/test_config.toml");

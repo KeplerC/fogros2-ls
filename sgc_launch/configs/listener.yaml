@@ -1,0 +1,9 @@
+
+crypto_name: test_cert
+signaling_server_address: 'ws://3.18.194.127:8000'
+routing_information_base_address: '3.18.194.127:8002'
+
+ros:
+  - action: pub
+    topic_name: /chatter
+    topic_type: std_msgs/msg/String

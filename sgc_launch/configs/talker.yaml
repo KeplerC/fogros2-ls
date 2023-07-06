@@ -1,0 +1,30 @@
+
+crypto_name: test_cert
+
+addresses:
+  signaling_server_address: 'ws://3.18.194.127:8000'
+  routing_information_base_address: '3.18.194.127:8002'
+
+topics:
+  - action: sub
+    topic_name: /chatter
+    topic_type: std_msgs/msg/String
+
+params: 
+  parameters:
+    # list of (some) parameters 
+  nodes:
+    # list of nodes that have the parameters 
+    # directly save the node
+  refresh_commands:
+    # when loaded with new parameters, 
+    # sometimes it needs commands to refresh 
+
+states:
+  # https://answers.ros.org/question/361187/how-to-use-a-saved-map-file-on-slam_toolbox/
+  state_file: /tmp/some_file
+  save:
+    ros2 service call /serialize_map slam_toolbox/srv/SerializePoseGraph # "{filename : 'give_any_name'}"
+  restore:
+    ros2 launch turtlecrab slam_toolbox.launch.py use_map_file:='True' map_file:='<path_to_the_map_location>' map_pose:="[<x, y, z>]"
+    
