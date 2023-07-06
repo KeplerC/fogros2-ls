@@ -1,0 +1,67 @@
+
+# crypto based as unique identifiers 
+identifiers: 
+  # crypto for the task (same for all robots/services on the same task)
+  task: test_cert 
+  # crypto unique for the robot 
+  # TODO: for now, it's not bound to an actual certificate yet, name whatever you want
+  identity: talker 
+  
+topics:
+  - topic_name: /chatter
+    topic_type: std_msgs/msg/String
+
+# declare possible states 
+# pub: publish to the swarm
+# sub: subscribe to the swarm
+# note this is reversed from prior version of SGC config file
+states: 
+  standby: 
+  robot: 
+    topics:
+      - /chatter: pub 
+    params:
+  cloud: 
+    topics:
+      - /chatter: sub 
+    params:
+
+# name: state
+# name need to match the identitifer's identity
+# state should be declared in possible states 
+assignment:
+  talker: robot
+  listener: cloud
+  idle: standby
+  
+addresses:
+  signaling_server_address: 'ws://3.18.194.127:8000'
+  routing_information_base_address: '3.18.194.127:8002'
+
+# parameters that wish to keep persistent throughout the migration
+params: 
+  parameters:
+    # list of (some) parameters 
+  nodes:
+    # list of nodes that have the parameters 
+    # directly save the node
+  refresh_commands:
+    # when loaded with new parameters, 
+    # sometimes it needs commands to refresh 
+
+# command used if wish to migrate the state from one machine to another
+# e.g. for SLAM, we want to migrate from one to another
+states:
+  # https://answers.ros.org/question/361187/how-to-use-a-saved-map-file-on-slam_toolbox/
+  state_file: /tmp/some_file
+  save: >
+    ros2 service call /serialize_map slam_toolbox/srv/SerializePoseGraph "{filename : 'give_any_name'}"
+  restore: >
+    ros2 launch turtlecrab slam_toolbox.launch.py use_map_file:='True' map_file:='<path_to_the_map_location>' map_pose:="[<x, y, z>]"
+
+# FogROS-like launch, assume the workspace is properly propagated
+launch: 
+  command: > 
+    ros2 launch demo_nodes_cpp talker
+  shutdown: >
+    kill $(ps aux | grep 'talker' | awk '{print $2}')
