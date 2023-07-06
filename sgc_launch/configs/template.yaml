@@ -15,7 +15,7 @@ topics:
 # pub: publish to the swarm
 # sub: subscribe to the swarm
 # note this is reversed from prior version of SGC config file
-states: 
+state_machine: 
   standby: 
   robot: 
     topics:
@@ -29,6 +29,7 @@ states:
 # name: state
 # name need to match the identitifer's identity
 # state should be declared in possible states 
+# Phase 1: only allow changing the assignment at runtime 
 assignment:
   talker: robot
   listener: cloud

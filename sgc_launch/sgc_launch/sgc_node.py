@@ -1,6 +1,50 @@
 
 
 import subprocess, os, yaml
+import pprint
+
+class SGC_State: 
+    def __init__(self, state_name, topic_dict, param_dict):
+        self.state_name = state_name
+        self.topics = topic_dict
+        self.params = param_dict
+
+
+class SGC_Swarm: 
+    def __init__(self, yaml_config):
+        # the identifers for the task and ROS instance
+        self.task_identifier = None 
+        self.instance_identifer = None 
+        
+        # default Berkeley's parameters 
+        self.signaling_server_address = 'ws://3.18.194.127:8000'
+        self.routing_information_base_address = '3.18.194.127:8002'
+
+        # topic dictionary: map topic to topic type 
+        self.topic_dict = dict()
+
+        # states: map state_name to SGC_State
+        self.state_dict = dict()
+
+        # assignment: map identifer to state_names 
+        self.assignment = dict()
+
+        self.load(yaml_config)
+
+    def load(self, yaml_config):
+        with open(yaml_config, "r") as f:
+            config = yaml.safe_load(f)
+            pprint.pprint(config)
+        
+
+        
+
+    # phase 1: only allow changing the state on state machine 
+    # TODO: allowing changing the state machine (not a must)
+    def update():
+        pass 
+
+
 
 def launch_sgc():
     current_env = os.environ.copy()
@@ -22,8 +66,9 @@ def launch_sgc():
     # setup crypto path
     current_env["SGC_CRYPTO_PATH"] = f"{crypto_path}"
 
-    with open(f"{config_path}/talker.yaml", "r") as f:
-        print(yaml.safe_load(f)) 
+
+    SGC_Swarm(f"{config_path}/template.yaml")
+
     return 
     # build and run SGC
     print("building FogROS SGC... It takes longer for first time")
