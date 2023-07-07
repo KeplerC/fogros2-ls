@@ -3,11 +3,13 @@
 import subprocess, os, yaml
 import pprint
 
-class SGC_State: 
+class SGC_StateMachine: 
     def __init__(self, state_name, topic_dict, param_dict):
         self.state_name = state_name
         self.topics = topic_dict
         self.params = param_dict
+    def __repr__(self):
+        return str(self.__dict__)
 
 
 class SGC_Swarm: 
@@ -23,11 +25,11 @@ class SGC_Swarm:
         # topic dictionary: map topic to topic type 
         self.topic_dict = dict()
 
-        # states: map state_name to SGC_State
+        # states: map state_name to SGC_StateMachine
         self.state_dict = dict()
 
         # assignment: map identifer to state_names 
-        self.assignment = dict()
+        self.assignment_dict = dict()
 
         self.load(yaml_config)
 
@@ -35,9 +37,45 @@ class SGC_Swarm:
         with open(yaml_config, "r") as f:
             config = yaml.safe_load(f)
             pprint.pprint(config)
+        self._load_addresses(config)
+        self._load_identifiers(config)
+        self._load_topics(config)
+        self._load_state_machine(config)
+        self._load_assignment(config)
         
 
-        
+    def _load_addresses(self, config):
+        self.signaling_server_address = config["addresses"]["signaling_server_address"]
+        self.routing_information_base_address = config["addresses"]["routing_information_base_address"]
+
+    def _load_identifiers(self, config):
+        self.task_identifier = config["identifiers"]["identity"]
+        self.instance_identifer = config["identifiers"]["task"]
+
+    def _load_topics(self, config):
+        for topic in config["topics"]:
+            self.topic_dict[topic["topic_name"]] = topic["topic_type"]
+
+    def _load_state_machine(self, config):
+        for state_name in config["state_machine"]:
+            state_description = config["state_machine"][state_name]
+            if state_description:
+                topics =  state_description["topics"] if "topics" in state_description else None 
+                params =  state_description["params"] if "params" in state_description else None 
+                self.state_dict[state_name] = SGC_StateMachine(state_name, topics, params)
+            else:
+                self.state_dict[state_name] = SGC_StateMachine(state_name, None, None)
+        print(self.state_dict)
+
+    def _load_assignment(self, config):
+        for identity_name in config["assignment"]:
+            state_name = config["assignment"][identity_name]
+            if state_name not in self.state_dict:
+                print(f"State {state_name} not defined. Not added!")
+                continue 
+            self.assignment_dict[identity_name] = state_name
+        print(self.assignment_dict)
+
 
     # phase 1: only allow changing the state on state machine 
     # TODO: allowing changing the state machine (not a must)
