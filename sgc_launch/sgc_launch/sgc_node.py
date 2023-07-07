@@ -161,6 +161,7 @@ def launch_sgc():
 
     # build and run SGC
     print("building FogROS SGC... It takes longer for first time")
+    subprocess.call(f"cargo build --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
     subprocess.Popen(f"cargo run --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
 
     sleep(2)
