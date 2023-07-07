@@ -40,11 +40,8 @@ def generate_launch_description():
     ld = LaunchDescription()
 
     listener_node = Node(
-        package="fogros2_examples", executable="listener", output="screen"
+        package="bench", executable="listener", output="screen"
     )
-    talker_node = Node(
-        package="fogros2_examples", executable="talker", output="screen"
-    )
-    ld.add_action(talker_node)
+
     ld.add_action(listener_node)
     return ld

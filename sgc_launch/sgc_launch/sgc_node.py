@@ -64,7 +64,7 @@ class SGC_Swarm:
     def load(self, yaml_config):
         with open(yaml_config, "r") as f:
             config = yaml.safe_load(f)
-            pprint.pprint(config)
+            self.logger.info(f"The config file is \n {pprint.pformat(config)}")
         self._load_addresses(config)
         self._load_identifiers(config)
         self._load_topics(config)
@@ -109,11 +109,9 @@ class SGC_Swarm:
     def _load_identifiers(self, config):
         self.task_identifier = config["identifiers"]["task"]
         if "whoami" not in config["identifiers"]: 
-            # whoami not defined in the rosparam, use the value from config file
-            if self.instance_identifer != "":
-                self.instance_identifer = config["identifiers"]["whoami"]
-            # need to define whoami either at rosparam or config file 
-            else:
+            # whoami not defined in the rosparam, we directly use the value from config file
+            # the value is already in self.instance_identifier
+            if not self.instance_identifer:
                 self.logger.error("Both rosparam and config file do not define whoami, define it")
                 exit()
         else:

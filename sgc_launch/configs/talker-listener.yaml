@@ -9,7 +9,7 @@ identifiers:
   # but make sure to match this with the assignment 
   # note #1 : this value is overriden by rosparam's whoami
   # note #2 : feel free to define it here or define it at rosparam
-  # whoami: machine_local 
+  # whoami: machine_talker 
   
 topics:
   - topic_name: /chatter
@@ -32,5 +32,5 @@ state_machine:
 # state should be declared in possible states 
 # Phase 1: only allow changing the assignment at runtime 
 assignment:
-  machine_local: talker
-  machine_cloud: listener
+  machine_talker: talker
+  machine_listener: listener

@@ -41,7 +41,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     node = rclpy.create_node("minimal_publisher")
-    publisher = node.create_publisher(String, "topic", 10)
+    publisher = node.create_publisher(String, "chatter", 10)
     host_name = socket.gethostname()
     host_ip = socket.gethostbyname(host_name)
 
