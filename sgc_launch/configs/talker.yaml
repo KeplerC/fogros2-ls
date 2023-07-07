@@ -6,7 +6,7 @@ identifiers:
   # crypto unique for the robot 
   # TODO: for now, it's not bound to an actual certificate yet, name whatever you want
   # note #1 : only this line is different from the listener
-  identity: machine_local 
+  whoami: machine_local 
   
 topics:
   - topic_name: /chatter
@@ -25,7 +25,7 @@ state_machine:
       - /chatter: sub 
 
 # name: state
-# name need to match the identitifer's identity
+# name need to match the identitifer's whoami
 # state should be declared in possible states 
 # Phase 1: only allow changing the assignment at runtime 
 assignment:

@@ -4,6 +4,8 @@ import subprocess, os, yaml
 import requests
 import pprint
 from time import sleep 
+import rclpy
+import rclpy.node
 
 def send_request(
     api_op, 
@@ -34,10 +36,12 @@ class SGC_StateMachine:
         return str(self.__dict__)
     
 class SGC_Swarm: 
-    def __init__(self, yaml_config, sgc_address="localhost:3000"):
+    def __init__(self, yaml_config, 
+                 whoami, logger,
+                 sgc_address="localhost:3000"):
         # the identifers for the task and ROS instance
         self.task_identifier = None 
-        self.instance_identifer = None 
+        self.instance_identifer = whoami 
         
         # default Berkeley's parameters 
         self.signaling_server_address = 'ws://3.18.194.127:8000'
@@ -53,6 +57,8 @@ class SGC_Swarm:
         # assignment: map identifer to state_names 
         self.assignment_dict = dict()
 
+        self.logger = logger
+        
         self.load(yaml_config)
 
     def load(self, yaml_config):
@@ -71,14 +77,14 @@ class SGC_Swarm:
         # currently: just focus on its own machine 
         # TODO: propagate the applied assignment to other machines 
         if self.instance_identifer not in new_assignment_dict:
-            print(f"[Warn] the assignment dict {new_assignment_dict} doesn't have the identifier {self.instance_identifer} for this machine")
+            self.logger.warn(f"[Warn] the assignment dict {new_assignment_dict} doesn't have the identifier {self.instance_identifer} for this machine")
             return 
         
         previous_state = self.assignment_dict[self.instance_identifer] if self.instance_identifer in self.assignment_dict else None 
         current_state = new_assignment_dict[self.instance_identifer]
         if self.instance_identifer in self.assignment_dict and \
             previous_state != current_state:
-            print("the assignment has changed! need to revoke the current assignment ")
+            self.logger.warn("the assignment has changed! need to revoke the current assignment ")
             for topic_to_action_pair in self.state_dict[previous_state].topics:
                 topic_name = list(topic_to_action_pair.keys())[0] # because it only has one element for sure
                 topic_type = self.topic_dict[topic_name]
@@ -102,7 +108,19 @@ class SGC_Swarm:
 
     def _load_identifiers(self, config):
         self.task_identifier = config["identifiers"]["task"]
-        self.instance_identifer = config["identifiers"]["identity"]
+        if "whoami" not in config["identifiers"]: 
+            # whoami not defined in the rosparam, use the value from config file
+            if self.instance_identifer != "":
+                self.instance_identifer = config["identifiers"]["whoami"]
+            # need to define whoami either at rosparam or config file 
+            else:
+                self.logger.error("Both rosparam and config file do not define whoami, define it")
+        else:
+            # either way,if rosparam is already defined, use rosparam's value
+            if self.instance_identifer:
+                self.logger.warn("both ros param and config file defines whoami, using the value from rosparam")
+            else:
+                self.instance_identifer = config["identifiers"]["whoami"]
 
     def _load_topics(self, config):
         for topic in config["topics"]:
@@ -117,7 +135,7 @@ class SGC_Swarm:
                 self.state_dict[state_name] = SGC_StateMachine(state_name, topics, params)
             else:
                 self.state_dict[state_name] = SGC_StateMachine(state_name, None, None)
-        print(self.state_dict)
+        self.logger.info(str(self.state_dict))
 
     def get_assignment_from_yaml(self, yaml_path):
         with open(yaml_path, "r") as f:
@@ -125,7 +143,7 @@ class SGC_Swarm:
         for identity_name in config["assignment"]:
             state_name = config["assignment"][identity_name]
             if state_name not in self.state_dict:
-                print(f"State {state_name} not defined. Not added!")
+                self.logger.warn(f"State {state_name} not defined. Not added!")
                 continue 
             self.assignment_dict[identity_name] = state_name
         return self.assignment_dict
@@ -138,7 +156,7 @@ class SGC_Swarm:
 
 
 
-def launch_sgc():
+def launch_sgc(logger, whoami):
     current_env = os.environ.copy()
     current_env["PATH"] = f"/usr/sbin:/sbin:{current_env['PATH']}"
     ws_path = current_env["COLCON_PREFIX_PATH"]
@@ -150,7 +168,7 @@ def launch_sgc():
     crypto_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs/crypto/test_cert/test_cert-private.pem"
     # check if the crypto files are generated, if not, generate them
     if not os.path.isfile(crypto_path):
-        print("crypto file does not exist, generating...")
+        logger.info(f"crypto file does not exist in {crypto_path}, generating...")
         subprocess.call([f"cd {ws_path}/sgc_launch/share/sgc_launch/configs && ./generate_crypto.sh"],  shell=True)
     
     # setup the config path
@@ -159,10 +177,10 @@ def launch_sgc():
     current_env["SGC_CRYPTO_PATH"] = f"{crypto_path}"
 
     config_path = f"{config_path}/talker.yaml"
-    swarm = SGC_Swarm(config_path)
+    swarm = SGC_Swarm(config_path, whoami, logger)
 
     # build and run SGC
-    print("building FogROS SGC... It takes longer for first time")
+    logger.info("building FogROS SGC... It takes longer for first time")
     # remove the stale SGC router
     subprocess.call("kill $(ps aux | grep 'gdp-router' | awk '{print $2}')", env=current_env,  shell=True)
     subprocess.call(f"cargo build --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
@@ -171,8 +189,35 @@ def launch_sgc():
     sleep(2)
     swarm.apply_assignment(swarm.get_assignment_from_yaml(config_path))
 
+
+class SGC_Router_Node(rclpy.node.Node):
+    def __init__(self):
+        super().__init__('sgc_launch_node')
+
+        self.declare_parameter("whoami", "")
+        self.whoami = self.get_parameter("whoami").value
+        self.logger = self.get_logger()
+
+        launch_sgc(self.logger, self.whoami)
+       
+
+
+    # self.timer = self.create_timer(1, self.timer_callback)
+    # def timer_callback(self):
+    #     my_param = self.get_parameter('my_parameter').get_parameter_value().string_value
+    #     self.get_logger().info('Hello %s!' % my_param)
+    #     my_new_param = rclpy.parameter.Parameter(
+    #         'my_parameter',
+    #         rclpy.Parameter.Type.STRING,
+    #         'world'
+    #     )
+    #     all_new_parameters = [my_new_param]
+    #     self.set_parameters(all_new_parameters)
+
 def main():
-    launch_sgc()
+    rclpy.init()
+    node = SGC_Router_Node()
+    rclpy.spin(node)
 
 if __name__ == '__main__':
     main()
