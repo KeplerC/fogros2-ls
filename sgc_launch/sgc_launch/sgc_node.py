@@ -1,19 +1,40 @@
 
 
 import subprocess, os, yaml
+import requests
 import pprint
+from time import sleep 
+
+def send_request(
+    api_op, 
+    topic_action,
+    topic_name,
+    topic_type,
+    machine_address, 
+):
+    ros_topic = {
+        "api_op": api_op,
+        "ros_op": topic_action,
+        "crypto": "test_cert",
+        "topic_name": topic_name,
+        "topic_type": topic_type,
+    }
+    uri = f"http://{machine_address}/topic"
+    # Create a new resource
+    response = requests.post(uri, json = ros_topic)
+    # print(f"topic {topic.name} with operation {api_op} request sent with response {response}")
 
 class SGC_StateMachine: 
     def __init__(self, state_name, topic_dict, param_dict):
         self.state_name = state_name
         self.topics = topic_dict
         self.params = param_dict
+
     def __repr__(self):
         return str(self.__dict__)
-
-
+    
 class SGC_Swarm: 
-    def __init__(self, yaml_config):
+    def __init__(self, yaml_config, sgc_address="localhost:3000"):
         # the identifers for the task and ROS instance
         self.task_identifier = None 
         self.instance_identifer = None 
@@ -21,6 +42,7 @@ class SGC_Swarm:
         # default Berkeley's parameters 
         self.signaling_server_address = 'ws://3.18.194.127:8000'
         self.routing_information_base_address = '3.18.194.127:8002'
+        self.sgc_address = sgc_address
 
         # topic dictionary: map topic to topic type 
         self.topic_dict = dict()
@@ -41,16 +63,44 @@ class SGC_Swarm:
         self._load_identifiers(config)
         self._load_topics(config)
         self._load_state_machine(config)
-        self._load_assignment(config)
         
+    '''
+    apply assignment dictionary
+    '''
+    def apply_assignment(self, new_assignment_dict):
+        # currently: just focus on its own machine 
+        # TODO: propagate the applied assignment to other machines 
+        if self.instance_identifer not in new_assignment_dict:
+            print(f"[Warn] the assignment dict {new_assignment_dict} doesn't have the identifier {self.instance_identifer} for this machine")
+            return 
+        
+        previous_state = self.assignment_dict[self.instance_identifer] if self.instance_identifer in self.assignment_dict else None 
+        current_state = new_assignment_dict[self.instance_identifer]
+        if self.instance_identifer in self.assignment_dict and \
+            previous_state != current_state:
+            print("the assignment has changed! need to revoke the current assignment ")
+            # TODO: revoke old topics 
+            # for topic_name in self.state_dict[previous_state].topics:
+            #     topic_type = self.topic_dict[topic_name]
+            #     topic_action = self.state_dict[previous_state].topics[topic_name]
+            #     send_request("del", topic_action, topic_name, topic_type, self.sgc_address)
+                
+        # add in new topics 
+        for topic_to_action_pair in self.state_dict[current_state].topics:
+            topic_name = list(topic_to_action_pair.keys())[0] # because it only has one element for sure
+            topic_type = self.topic_dict[topic_name]
+            topic_action = topic_to_action_pair[topic_name]
+            send_request("add", topic_action, topic_name, topic_type, self.sgc_address)
+
+        # TODO: apply parameter changes 
 
     def _load_addresses(self, config):
         self.signaling_server_address = config["addresses"]["signaling_server_address"]
         self.routing_information_base_address = config["addresses"]["routing_information_base_address"]
 
     def _load_identifiers(self, config):
-        self.task_identifier = config["identifiers"]["identity"]
-        self.instance_identifer = config["identifiers"]["task"]
+        self.task_identifier = config["identifiers"]["task"]
+        self.instance_identifer = config["identifiers"]["identity"]
 
     def _load_topics(self, config):
         for topic in config["topics"]:
@@ -67,14 +117,16 @@ class SGC_Swarm:
                 self.state_dict[state_name] = SGC_StateMachine(state_name, None, None)
         print(self.state_dict)
 
-    def _load_assignment(self, config):
+    def get_assignment_from_yaml(self, yaml_path):
+        with open(yaml_path, "r") as f:
+            config = yaml.safe_load(f)
         for identity_name in config["assignment"]:
             state_name = config["assignment"][identity_name]
             if state_name not in self.state_dict:
                 print(f"State {state_name} not defined. Not added!")
                 continue 
             self.assignment_dict[identity_name] = state_name
-        print(self.assignment_dict)
+        return self.assignment_dict
 
 
     # phase 1: only allow changing the state on state machine 
@@ -104,13 +156,15 @@ def launch_sgc():
     # setup crypto path
     current_env["SGC_CRYPTO_PATH"] = f"{crypto_path}"
 
+    config_path = f"{config_path}/template.yaml"
+    swarm = SGC_Swarm(config_path)
 
-    SGC_Swarm(f"{config_path}/template.yaml")
-
-    return 
     # build and run SGC
     print("building FogROS SGC... It takes longer for first time")
-    subprocess.call(f"cargo run --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
+    subprocess.Popen(f"cargo run --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
+
+    sleep(2)
+    swarm.apply_assignment(swarm.get_assignment_from_yaml(config_path))
 
 def main():
     launch_sgc()
