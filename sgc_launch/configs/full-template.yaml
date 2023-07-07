@@ -9,7 +9,7 @@ identifiers:
   # but make sure to match this with the assignment 
   # note #1 : this value is overriden by rosparam's whoami
   # note #2 : feel free to define it here or define it at rosparam
-  identity: machine_local 
+  # whoami: machine_local 
   
 topics:
   - topic_name: /chatter
@@ -31,7 +31,7 @@ state_machine:
     params:
 
 # name: state
-# name need to match the identitifer's identity
+# name need to match the identitifer's whoami
 # state should be declared in possible states 
 # Phase 1: only allow changing the assignment at runtime 
 assignment:
