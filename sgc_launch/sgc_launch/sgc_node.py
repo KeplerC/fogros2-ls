@@ -79,12 +79,12 @@ class SGC_Swarm:
         if self.instance_identifer in self.assignment_dict and \
             previous_state != current_state:
             print("the assignment has changed! need to revoke the current assignment ")
-            # TODO: revoke old topics 
-            # for topic_name in self.state_dict[previous_state].topics:
-            #     topic_type = self.topic_dict[topic_name]
-            #     topic_action = self.state_dict[previous_state].topics[topic_name]
-            #     send_request("del", topic_action, topic_name, topic_type, self.sgc_address)
-                
+            for topic_to_action_pair in self.state_dict[previous_state].topics:
+                topic_name = list(topic_to_action_pair.keys())[0] # because it only has one element for sure
+                topic_type = self.topic_dict[topic_name]
+                topic_action = topic_to_action_pair[topic_name]
+                send_request("del", topic_action, topic_name, topic_type, self.sgc_address)
+                    
         # add in new topics 
         for topic_to_action_pair in self.state_dict[current_state].topics:
             topic_name = list(topic_to_action_pair.keys())[0] # because it only has one element for sure
