@@ -1,11 +1,12 @@
+
 # crypto based as unique identifiers 
 identifiers: 
   # crypto for the task (same for all robots/services on the same task)
   task: test_cert 
   # crypto unique for the robot 
   # TODO: for now, it's not bound to an actual certificate yet, name whatever you want
-  # note #1 : only this line is different from the talker
-  identity: machine_cloud  
+  # note #1 : only this line is different from the listener
+  identity: machine_local 
   
 topics:
   - topic_name: /chatter

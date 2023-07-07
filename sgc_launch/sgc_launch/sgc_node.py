@@ -95,8 +95,10 @@ class SGC_Swarm:
         # TODO: apply parameter changes 
 
     def _load_addresses(self, config):
-        self.signaling_server_address = config["addresses"]["signaling_server_address"]
-        self.routing_information_base_address = config["addresses"]["routing_information_base_address"]
+        if "address" not in config:
+            return 
+        self.signaling_server_address = config["addresses"]["signaling_server_address"] if "signaling_server_address" in config["addresses"] else self.signaling_server_address
+        self.routing_information_base_address = config["addresses"]["routing_information_base_address"] if "routing_information_base_address" in config["addresses"] else self.routing_information_base_address
 
     def _load_identifiers(self, config):
         self.task_identifier = config["identifiers"]["task"]
@@ -156,11 +158,13 @@ def launch_sgc():
     # setup crypto path
     current_env["SGC_CRYPTO_PATH"] = f"{crypto_path}"
 
-    config_path = f"{config_path}/template.yaml"
+    config_path = f"{config_path}/talker.yaml"
     swarm = SGC_Swarm(config_path)
 
     # build and run SGC
     print("building FogROS SGC... It takes longer for first time")
+    # remove the stale SGC router
+    subprocess.call("kill $(ps aux | grep 'gdp-router' | awk '{print $2}')", env=current_env,  shell=True)
     subprocess.call(f"cargo build --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
     subprocess.Popen(f"cargo run --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
 

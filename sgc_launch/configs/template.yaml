@@ -5,7 +5,7 @@ identifiers:
   task: test_cert 
   # crypto unique for the robot 
   # TODO: for now, it's not bound to an actual certificate yet, name whatever you want
-  identity: talker 
+  identity: machine_local 
   
 topics:
   - topic_name: /chatter
@@ -17,11 +17,11 @@ topics:
 # note this is reversed from prior version of SGC config file
 state_machine: 
   standby: 
-  robot: 
+  talker: 
     topics:
       - /chatter: pub 
     params:
-  cloud: 
+  listener: 
     topics:
       - /chatter: sub 
     params:
@@ -31,9 +31,9 @@ state_machine:
 # state should be declared in possible states 
 # Phase 1: only allow changing the assignment at runtime 
 assignment:
-  talker: robot
-  listener: cloud
-  idle: standby
+  machine_local: talker
+  machine_cloud: listener
+  machine_edge: standby
   
 addresses:
   signaling_server_address: 'ws://3.18.194.127:8000'
