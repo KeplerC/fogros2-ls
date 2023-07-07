@@ -115,6 +115,7 @@ class SGC_Swarm:
             # need to define whoami either at rosparam or config file 
             else:
                 self.logger.error("Both rosparam and config file do not define whoami, define it")
+                exit()
         else:
             # either way,if rosparam is already defined, use rosparam's value
             if self.instance_identifer:
@@ -156,14 +157,14 @@ class SGC_Swarm:
 
 
 
-def launch_sgc(logger, whoami):
+def launch_sgc(config_path, config_file_name, logger, whoami):
     current_env = os.environ.copy()
     current_env["PATH"] = f"/usr/sbin:/sbin:{current_env['PATH']}"
     ws_path = current_env["COLCON_PREFIX_PATH"]
     # source directory of sgc
     sgc_path = f"{ws_path}/../src/fogros2-sgc-digial-double"
     # directory of all the config files
-    config_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs"
+    config_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs" if not config_path else config_path
     # directory of all the crypto files
     crypto_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs/crypto/test_cert/test_cert-private.pem"
     # check if the crypto files are generated, if not, generate them
@@ -176,7 +177,8 @@ def launch_sgc(logger, whoami):
     # setup crypto path
     current_env["SGC_CRYPTO_PATH"] = f"{crypto_path}"
 
-    config_path = f"{config_path}/talker.yaml"
+    config_path = f"{config_path}/{config_file_name}"
+    logger.info(f"using yaml config file {config_path}")
     swarm = SGC_Swarm(config_path, whoami, logger)
 
     # build and run SGC
@@ -196,9 +198,16 @@ class SGC_Router_Node(rclpy.node.Node):
 
         self.declare_parameter("whoami", "")
         self.whoami = self.get_parameter("whoami").value
+
+        self.declare_parameter("config_path", "")
+        self.config_path = self.get_parameter("config_path").value
+
+        self.declare_parameter("config_file_name", "talker-listener.yaml")
+        self.config_file_name = self.get_parameter("config_file_name").value
+
         self.logger = self.get_logger()
 
-        launch_sgc(self.logger, self.whoami)
+        launch_sgc(self.config_path, self.config_file_name, self.logger, self.whoami)
        
 
 

@@ -4,7 +4,11 @@ identifiers:
   # crypto for the task (same for all robots/services on the same task)
   task: test_cert 
   # crypto unique for the robot 
-  # TODO: for now, it's not bound to an actual certificate yet, name whatever you want
+  # note #0 : 
+  # for now, it's not bound to an actual certificate yet, name whatever you want
+  # but make sure to match this with the assignment 
+  # note #1 : this value is overriden by rosparam's whoami
+  # note #2 : feel free to define it here or define it at rosparam
   identity: machine_local 
   
 topics:
