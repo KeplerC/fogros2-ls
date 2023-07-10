@@ -140,6 +140,7 @@ pub async fn ros_topic_remote_publisher_handler(
 pub async fn ros_topic_remote_subscriber_handler(
     mut status_recv: UnboundedReceiver<TopicModificationRequest>,
 ) {
+    info!("ros_topic_remote_subscriber_handler has started");
     let mut join_handles = vec![];
 
     let (fib_tx, fib_rx) = mpsc::unbounded_channel();
@@ -620,7 +621,7 @@ pub async fn ros_topic_manager(mut topic_request_rx: UnboundedReceiver<ROSTopicR
                         info!("detected a new topic {:?} with action {:?}, topic gdpname {:?}", topic_name, action, topic_gdp_name);
                         match action.as_str() {
                             // locally subscribe, globally publish
-                            "sub" => {
+                            "pub" => {
                                 let topic_name_cloned = topic_name.clone();
                                 let certificate = certificate.clone();
                                 let topic_operation_tx = publisher_operation_tx.clone();
@@ -634,7 +635,7 @@ pub async fn ros_topic_manager(mut topic_request_rx: UnboundedReceiver<ROSTopicR
                             }
 
                             // locally publish, globally subscribe
-                            "pub" => {
+                            "sub" => {
                                 // subscribe to a pattern that matches the key you're interested in
                                 // create a new thread to handle that listens for the topic
                                 let topic_name_cloned = topic_name.clone();
@@ -657,7 +658,7 @@ pub async fn ros_topic_manager(mut topic_request_rx: UnboundedReceiver<ROSTopicR
                         info!("deleting topic {:?}", payload);
                         
                         match payload.ros_op.as_str() {
-                            "sub" => {
+                            "pub" => {
                                 let topic_operation_tx = publisher_operation_tx.clone();
                                 let topic_creator_request = TopicModificationRequest {
                                     action: FibChangeAction::DELETE,
@@ -669,7 +670,7 @@ pub async fn ros_topic_manager(mut topic_request_rx: UnboundedReceiver<ROSTopicR
                                 let _ = topic_operation_tx.send(topic_creator_request);
 
                             }, 
-                            "pub" => {
+                            "sub" => {
                                 let topic_operation_tx = subscriber_operation_tx.clone();
                                 let topic_creator_request = TopicModificationRequest {
                                     action: FibChangeAction::DELETE,
