@@ -2,7 +2,7 @@
 
 FogROS2-SGC is a cloud robotics platform for connecting disjoint ROS2 networks across different physical locations, networks, and Data Distribution Services. 
 
-\[[Website](https://sites.google.com/view/fogros2-sgc)\] \[[Video](https://youtu.be/hVVFVGLcK0c)\] \[[Arxiv](https://arxiv.org/abs/2210.11691)\] (TODO: arxiv link)
+\[[Website](https://sites.google.com/view/fogros2-sgc)\] \[[Video](https://youtu.be/hVVFVGLcK0c)\] \[[Arxiv](https://arxiv.org/abs/2306.17157)\]
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -76,7 +76,7 @@ cd sgc_launch/configs
 ```
 Every directory in `./sgc_launch/configs/crypto` contains the cryptographic secrets needed for communication. 
 
-Distribute the `crypto` directory by from machine A and machine B. Here is an example with `scp`: 
+Distribute the `crypto` directory by from machine A and machine B. This can be done with USB copying, typing or SSH. Here is an example with `scp`: 
 ```
 scp -r crypto USER@MACHINE_B_IP_ADDR:/SGC_PATH/sgc_launch/configs/
 ```
@@ -86,8 +86,32 @@ After the crypto secrets are delivered, go back to project main directory.
 
 
 ## Run as a ROS2 node
-Please checkout `./sgc_launch` for more information. 
 
+#### Step1: Create a ROS workspace and clone this repo to the workspace and build it
+```
+cd ~
+mkdir -p fog_ws/src
+cd ~/fog_ws/src
+git clone https://github.com/data-capsule/fogros2-sgc.git
+
+cd ~/fog_ws 
+colcon build
+```
+Please make sure that the repo is cloned directly under the `src` directory. 
+
+#### Step2: Run with ros2 launch  
+Machine A: 
+```
+ros2 launch sgc_launch talker.launch.py
+```
+
+Machine B: 
+```
+ros2 launch sgc_launch listener.launch.py
+```
+Note that machine A and machine B do not need to configure any IP address, and they automatically connect. 
+
+Please refer to the  [README](./sgc_launch/README.md) for writing the launch file for your application.
 
 ## Run as a standalone process
 ### Build and Run
