@@ -46,7 +46,7 @@ sudo apt install build-essential curl pkg-config libssl-dev protobuf-compiler cl
 
 #### Install Rust 
 ```
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -y
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
 ```
 

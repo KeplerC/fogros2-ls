@@ -160,7 +160,7 @@ def launch_sgc(config_path, config_file_name, logger, whoami):
     current_env["PATH"] = f"/usr/sbin:/sbin:{current_env['PATH']}"
     ws_path = current_env["COLCON_PREFIX_PATH"]
     # source directory of sgc
-    sgc_path = f"{ws_path}/../src/fogros2-sgc-digial-double"
+    sgc_path = f"{ws_path}/../src/fogros2-sgc"
     # directory of all the config files
     config_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs" if not config_path else config_path
     # directory of all the crypto files
