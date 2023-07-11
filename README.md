@@ -85,7 +85,7 @@ replace `USER`, `MACHINE_B_IP_ADDR`, `SGC_PATH` with the actual paths.
 After the crypto secrets are delivered, go back to project main directory. 
 
 
-## Run as a ROS2 node
+## (Recommended) Run as a ROS2 node
 
 #### Step1: Create a ROS workspace and clone this repo to the workspace and build it
 ```
@@ -111,7 +111,7 @@ ros2 launch sgc_launch listener.launch.py
 ```
 Note that machine A and machine B do not need to configure any IP address, and they automatically connect. 
 
-Please refer to the  [README](./sgc_launch/README.md) for writing the launch file for your application.
+Please refer to the  [README](./sgc_launch/README.md) for writing the launch file for your application. FogROS2-SGC supports automatic topic discovery, but it is recommended to expose the public interface only if intended. 
 
 ## Run as a standalone process
 ### Build and Run
@@ -128,7 +128,13 @@ cargo run --release router
 `
 instead.
 
-(TODO: how to add and remove topics with this)
+Adding and removing topics requires REST API. Example of such is 
+```
+curl -X POST http://localhost:3000/topic \
+   -H 'Content-Type: application/json' \
+   -d '{"api_op":"add","ros_op":"pub", "crypto":"test_cert", "topic_name":"/chatter", "topic_type":"std_msgs/msg/String"}'
+```
+The port for the REST interface can be changed via `SGC_API_PORT` environment variable.
 
 ## Notes 
 The configuration is currently coded with a Berkeley's signaling server that facilitates the routing inforamtion exchange. See [Making your own signaling server](#making-your-own-signaling-server) section for creating your own signaling server.

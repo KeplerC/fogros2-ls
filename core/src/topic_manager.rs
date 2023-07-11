@@ -564,13 +564,13 @@ pub async fn ros_topic_manager(mut topic_request_rx: UnboundedReceiver<ROSTopicR
     let mut waiting_rib_handles = vec![];
 
     // TODO: now it's hardcoded, make it changable later
-    let crypto_name = "";
+    let crypto_name = "test_cert";
     let crypto_path = match env::var_os("SGC_CRYPTO_PATH") {
         Some(config_file) => {
             config_file.into_string().unwrap()
         },
         None => format!(
-            "./scripts/crypto/{}/{}-private.pem",
+            "./sgc_launch/configs/crypto/{}/{}-private.pem",
             crypto_name, crypto_name
         ),
     };
