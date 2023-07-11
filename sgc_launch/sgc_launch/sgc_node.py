@@ -221,7 +221,7 @@ class SGC_Router_Node(rclpy.node.Node):
         else:
             self.automatic_mode = False
 
-        self.declare_parameter("release_mode", False)
+        self.declare_parameter("release_mode", True)
         self.release_mode = self.get_parameter("release_mode").value
 
         launch_sgc(self.config_path, self.config_file_name, self.logger, self.whoami, self.release_mode, self.automatic_mode )
@@ -231,10 +231,8 @@ class SGC_Router_Node(rclpy.node.Node):
     def discovery_callback(self):
         current_env = os.environ.copy()
         output = subprocess.run(f"ros2 topic list -t", env=current_env, capture_output=True, text=True,  shell=True).stdout
-        self.logger.info(f"{output}")
         for line in output.split("\n"):
             # /rosout [rcl_interfaces/msg/Log]
-            self.logger.info(f"{line}")
             if line == "":
                 continue
             topic_name = line.split(" ")[0]
@@ -253,6 +251,7 @@ class SGC_Router_Node(rclpy.node.Node):
                 else:
                     self.get_logger().info(f"cannot determine {topic_name} direction")
                 self.discovered_topics.append(topic_name)
+            # TODO: remove a topic when the topic is gone 
 
 
     # self.timer = self.create_timer(1, self.timer_callback)
