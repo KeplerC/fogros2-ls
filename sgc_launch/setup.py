@@ -1,8 +1,19 @@
-import os
-from glob import glob
+from itertools import chain
+import os, sys
+from glob import glob, iglob
+from attr import s
 from setuptools import setup
 
 package_name = 'sgc_launch'
+
+def generate_data_files(share_path, dir):
+    data_files = []
+    
+    for path, _, files in os.walk(dir):
+        list_entry = (share_path + path, [os.path.join(path, f) for f in files if not f.startswith('.')])
+        data_files.append(list_entry)
+
+    return data_files
 
 setup(
     name=package_name,
@@ -17,15 +28,7 @@ setup(
             os.path.join("share", package_name, "configs"),
             glob("configs/*.yaml"),
         ),
-        (
-            os.path.join("share", package_name, "configs"),
-            glob("configs/*.toml"),
-        ),
-        (
-            os.path.join("share", package_name, "configs"),
-            glob("configs/*.sh"),
-        ),
-    ],
+    ] + generate_data_files('share/' + package_name + '/', 'configs'),
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='ubuntu',
