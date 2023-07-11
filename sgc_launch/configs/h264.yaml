@@ -1,0 +1,20 @@
+
+
+identifiers: 
+  task: test_cert 
+
+topics:
+  - topic_name: /image/h264
+    topic_type: h264_msgs/msg/Packet
+
+state_machine: 
+  encoder: 
+    topics:
+      - /image/h264: pub 
+  decoder: 
+    topics:
+      - /image/h264: sub 
+
+assignment:
+  machine_encoder: encoder
+  machine_decoder: decoder
