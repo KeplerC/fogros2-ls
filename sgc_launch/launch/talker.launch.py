@@ -40,7 +40,7 @@ def generate_launch_description():
     ld = LaunchDescription()
 
     talker_node = Node(
-        package="bench", executable="talker", output="screen"
+        package="bench", executable="talker",
     )
 
     ld.add_action(talker_node)
@@ -54,7 +54,8 @@ def generate_launch_description():
             # find and add config file in ./sgc_launhc/configs
             # or use the `config_path` optional parameter
             {"config_file_name": "talker-listener.yaml"}, 
-            {"whoami": "machine_talker"}
+            {"whoami": "machine_talker"},
+            {"release_mode": True}
         ]
     )
     ld.add_action(sgc_router)

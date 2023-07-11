@@ -155,7 +155,7 @@ class SGC_Swarm:
 
 
 
-def launch_sgc(config_path, config_file_name, logger, whoami):
+def launch_sgc(config_path, config_file_name, logger, whoami, release_mode, automatic_mode):
     current_env = os.environ.copy()
     current_env["PATH"] = f"/usr/sbin:/sbin:{current_env['PATH']}"
     ws_path = current_env["COLCON_PREFIX_PATH"]
@@ -175,24 +175,34 @@ def launch_sgc(config_path, config_file_name, logger, whoami):
     # setup crypto path
     current_env["SGC_CRYPTO_PATH"] = f"{crypto_path}"
 
-    config_path = f"{config_path}/{config_file_name}"
-    logger.info(f"using yaml config file {config_path}")
-    swarm = SGC_Swarm(config_path, whoami, logger)
+    if automatic_mode:
+        logger.info("automatic discovery is enabled")  
+    else:
+        config_path = f"{config_path}/{config_file_name}"
+        logger.info(f"using yaml config file {config_path}")
+        swarm = SGC_Swarm(config_path, whoami, logger)
+        
 
     # build and run SGC
     logger.info("building FogROS SGC... It takes longer for first time")
     # remove the stale SGC router
     subprocess.call("kill $(ps aux | grep 'gdp-router' | awk '{print $2}')", env=current_env,  shell=True)
-    subprocess.call(f"cargo build --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
-    subprocess.Popen(f"cargo run --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
+    if release_mode:
+        subprocess.call(f"cargo build --release --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
+        subprocess.Popen(f"cargo run --release --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
+    else:
+        subprocess.call(f"cargo build --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
+        subprocess.Popen(f"cargo run --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
 
-    sleep(2)
-    swarm.apply_assignment(swarm.get_assignment_from_yaml(config_path))
+    if not automatic_mode:
+        sleep(2)
+        swarm.apply_assignment(swarm.get_assignment_from_yaml(config_path))
 
 
 class SGC_Router_Node(rclpy.node.Node):
     def __init__(self):
         super().__init__('sgc_launch_node')
+        self.logger = self.get_logger()
 
         self.declare_parameter("whoami", "")
         self.whoami = self.get_parameter("whoami").value
@@ -200,13 +210,49 @@ class SGC_Router_Node(rclpy.node.Node):
         self.declare_parameter("config_path", "")
         self.config_path = self.get_parameter("config_path").value
 
-        self.declare_parameter("config_file_name", "talker-listener.yaml")
+        self.declare_parameter("config_file_name", "PARAMETER NOT SET") # ROS2 parameter is strongly typed
         self.config_file_name = self.get_parameter("config_file_name").value
 
-        self.logger = self.get_logger()
+        if self.config_file_name == "PARAMETER NOT SET":
+            
+            self.logger.warn("No config file specified! Use unstable automatic topic discovery!")
+            self.timer = self.create_timer(1, self.discovery_callback)
+            self.automatic_mode = True 
+        else:
+            self.automatic_mode = False
 
-        launch_sgc(self.config_path, self.config_file_name, self.logger, self.whoami)
+        self.declare_parameter("release_mode", False)
+        self.release_mode = self.get_parameter("release_mode").value
+
+        launch_sgc(self.config_path, self.config_file_name, self.logger, self.whoami, self.release_mode, self.automatic_mode )
+
+        self.discovered_topics = ["/rosout", "/parameter_events"] # we shouldn't expose them as global topics 
        
+    def discovery_callback(self):
+        current_env = os.environ.copy()
+        output = subprocess.run(f"ros2 topic list -t", env=current_env, capture_output=True, text=True,  shell=True).stdout
+        self.logger.info(f"{output}")
+        for line in output.split("\n"):
+            # /rosout [rcl_interfaces/msg/Log]
+            self.logger.info(f"{line}")
+            if line == "":
+                continue
+            topic_name = line.split(" ")[0]
+            topic_type = line.split(" ")[1][1:-1]
+            if topic_name not in self.discovered_topics:
+                self.get_logger().info(f"found a new topic {topic_name} {topic_type}")
+                output = subprocess.run(f"ros2 topic info {topic_name}", env=current_env, capture_output=True, text=True,  shell=True).stdout
+                if "Subscription count: 0" in output:
+                    self.get_logger().info(f"publish {topic_name} as a remote publisher")
+                    topic_action = "pub"
+                    send_request("add", topic_action, topic_name, topic_type, "localhost:3000")
+                elif "Publisher count: 0" in output:
+                    self.get_logger().info(f"publish {topic_name} as a remote subscriber")
+                    topic_action = "sub"
+                    send_request("add", topic_action, topic_name, topic_type, "localhost:3000")
+                else:
+                    self.get_logger().info(f"cannot determine {topic_name} direction")
+                self.discovered_topics.append(topic_name)
 
 
     # self.timer = self.create_timer(1, self.timer_callback)
