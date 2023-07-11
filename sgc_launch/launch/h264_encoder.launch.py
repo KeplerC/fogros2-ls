@@ -58,10 +58,10 @@ def generate_launch_description():
         output="screen",
         emulate_tty = True,
         parameters = [
-            # find and add config file in ./sgc_launhc/configs
+            # find and add config file in ./sgc_launch/configs
             # or use the `config_path` optional parameter
             {"config_file_name": "h264.yaml"}, 
-            {"whoami": "encoder"},
+            {"whoami": "machine_encoder"},
             {"release_mode": True}
         ]
     )

@@ -44,3 +44,17 @@ assignment:
 We observe that the cloud services are usually the reversed of the robots' configuration file (e.g. cloud is the publisher then robot is the subscriber). We want the user only need to write and distribute one copy of the configuration file, and mark themselves as different only at `whoami` in `identifiers`. This value is overriden by the ros2 launch file's parameter. 
 
 In the example, the configuration configures `whoami` as `machine_talker`, which is assigned with the `talker`'s state (at a`assignment`). The `talker` state is defined to `pub` (publish) to the topic `chatter`. The `chatter` is configured to be of type `std_msgs/msgs/String`. Vise versa, the listener only need to set `whoami` as `machine_listener`, and the states (how the topics are handled) are automated. 
+
+### Automated version without configuration file 
+
+SGC supports autoamtic topic discovery by simply not setting the configuration file. This works with heristics that if the topic misses the publisher (publisher count = 0), then it exposes as a remote subscriber, and vise versa. 
+
+
+### H264 Example 
+
+```
+cd sgc_ws/src
+git clone https://github.com/KeplerC/h264_image_transport.git
+```
+
+The SGC will automatically incoperate H264 streaming ROS2 message type in its build system. 

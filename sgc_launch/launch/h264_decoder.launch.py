@@ -61,7 +61,7 @@ def generate_launch_description():
             # find and add config file in ./sgc_launhc/configs
             # or use the `config_path` optional parameter
             {"config_file_name": "h264.yaml"}, 
-            {"whoami": "decoder"},
+            {"whoami": "machine_decoder"},
             {"release_mode": True}
         ]
     )
