@@ -6,6 +6,7 @@ from setuptools import setup
 
 package_name = 'sgc_launch'
 
+# https://stackoverflow.com/questions/27829754/include-entire-directory-in-python-setup-py-data-files/76159267#76159267?newreg=0c740c2c1e204531a52f362c66fb8b1d
 def generate_data_files(share_path, dir):
     data_files = []
     
