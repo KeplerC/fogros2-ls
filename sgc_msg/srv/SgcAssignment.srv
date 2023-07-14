@@ -1,4 +1,4 @@
-std_msgs/String a
-std_msgs/String b
+std_msgs/String machine
+std_msgs/String state
 ---
-std_msgs/String c
+std_msgs/String result

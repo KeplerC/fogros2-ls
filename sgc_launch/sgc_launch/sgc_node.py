@@ -7,7 +7,7 @@ from time import sleep
 import rclpy
 import rclpy.node
 from rcl_interfaces.msg import SetParametersResult
-
+from sgc_msgs.srv import SgcAssignment
 
 def send_request(
     api_op, 
@@ -186,15 +186,20 @@ class SGC_Router_Node(rclpy.node.Node):
         self.discovered_topics = ["/rosout", "/parameter_events"] # we shouldn't expose them as global topics 
         self.add_on_set_parameters_callback(self.parameters_callback)
 
-        if not self.automatic_mode:
-            sleep(2)
-            self.swarm.apply_assignment(self.swarm.get_assignment_from_yaml(self.config_path))
-
+        self.assignment_server = self.create_service(SgcAssignment, 'sgc_assignment_service', self.sgc_assignment_callback)
 
     def parameters_callback(self, params):
         self.logger.info(f"got {params}!!!")
         return SetParametersResult(successful=False)
 
+    # ros2 service call /sgc_assignment_service sgc_msgs/srv/SgcAssignment '{machine: {data: "a"}, state: {data: "b"} }'
+    def sgc_assignment_callback(self, request, response):
+        machine = request.machine.data
+        state = request.state.data
+        assignment_dict = {machine: state}
+        self.swarm.apply_assignment(assignment_dict)
+        response.result.data = "success"
+        return response
 
     def launch_sgc(self, config_path, config_file_name, logger, whoami, release_mode, automatic_mode):
         current_env = os.environ.copy()
@@ -234,6 +239,11 @@ class SGC_Router_Node(rclpy.node.Node):
         else:
             subprocess.call(f"cargo build --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
             subprocess.Popen(f"cargo run --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
+        
+        if not self.automatic_mode:
+            sleep(2)
+            self.swarm.apply_assignment(self.swarm.get_assignment_from_yaml(config_path))
+
 
     def discovery_callback(self):
         current_env = os.environ.copy()
