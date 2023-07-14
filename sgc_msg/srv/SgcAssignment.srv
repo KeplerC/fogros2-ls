@@ -1,0 +1,4 @@
+std_msgs/String a
+std_msgs/String b
+---
+std_msgs/String c
