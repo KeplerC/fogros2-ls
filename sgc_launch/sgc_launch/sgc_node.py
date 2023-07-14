@@ -6,6 +6,8 @@ import pprint
 from time import sleep 
 import rclpy
 import rclpy.node
+from rcl_interfaces.msg import SetParametersResult
+
 
 def send_request(
     api_op, 
@@ -154,51 +156,6 @@ class SGC_Swarm:
         pass 
 
 
-
-def launch_sgc(config_path, config_file_name, logger, whoami, release_mode, automatic_mode):
-    current_env = os.environ.copy()
-    current_env["PATH"] = f"/usr/sbin:/sbin:{current_env['PATH']}"
-    ws_path = current_env["COLCON_PREFIX_PATH"]
-    # source directory of sgc
-    sgc_path = f"{ws_path}/../src/fogros2-sgc"
-    # directory of all the config files
-    config_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs" if not config_path else config_path
-    # directory of all the crypto files
-    crypto_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs/crypto/test_cert/test_cert-private.pem"
-    # check if the crypto files are generated, if not, generate them
-    if not os.path.isfile(crypto_path):
-        logger.info(f"crypto file does not exist in {crypto_path}, generating...")
-        subprocess.call([f"cd {ws_path}/sgc_launch/share/sgc_launch/configs && ./generate_crypto.sh"],  shell=True)
-    
-    # setup the config path
-    current_env["SGC_CONFIG"] = f"{config_path}/automatic.toml"
-    # setup crypto path
-    current_env["SGC_CRYPTO_PATH"] = f"{crypto_path}"
-
-    if automatic_mode:
-        logger.info("automatic discovery is enabled")  
-    else:
-        config_path = f"{config_path}/{config_file_name}"
-        logger.info(f"using yaml config file {config_path}")
-        swarm = SGC_Swarm(config_path, whoami, logger)
-        
-
-    # build and run SGC
-    logger.info("building FogROS SGC... It takes longer for first time")
-    # remove the stale SGC router
-    subprocess.call("kill $(ps aux | grep 'gdp-router' | awk '{print $2}')", env=current_env,  shell=True)
-    if release_mode:
-        subprocess.call(f"cargo build --release --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
-        subprocess.Popen(f"cargo run --release --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
-    else:
-        subprocess.call(f"cargo build --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
-        subprocess.Popen(f"cargo run --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
-
-    if not automatic_mode:
-        sleep(2)
-        swarm.apply_assignment(swarm.get_assignment_from_yaml(config_path))
-
-
 class SGC_Router_Node(rclpy.node.Node):
     def __init__(self):
         super().__init__('sgc_launch_node')
@@ -224,10 +181,60 @@ class SGC_Router_Node(rclpy.node.Node):
         self.declare_parameter("release_mode", True)
         self.release_mode = self.get_parameter("release_mode").value
 
-        launch_sgc(self.config_path, self.config_file_name, self.logger, self.whoami, self.release_mode, self.automatic_mode )
+        self.launch_sgc(self.config_path, self.config_file_name, self.logger, self.whoami, self.release_mode, self.automatic_mode )
 
         self.discovered_topics = ["/rosout", "/parameter_events"] # we shouldn't expose them as global topics 
-       
+        self.add_on_set_parameters_callback(self.parameters_callback)
+
+        if not self.automatic_mode:
+            sleep(2)
+            self.swarm.apply_assignment(self.swarm.get_assignment_from_yaml(self.config_path))
+
+
+    def parameters_callback(self, params):
+        self.logger.info(f"got {params}!!!")
+        return SetParametersResult(successful=False)
+
+
+    def launch_sgc(self, config_path, config_file_name, logger, whoami, release_mode, automatic_mode):
+        current_env = os.environ.copy()
+        current_env["PATH"] = f"/usr/sbin:/sbin:{current_env['PATH']}"
+        ws_path = current_env["COLCON_PREFIX_PATH"]
+        # source directory of sgc
+        sgc_path = f"{ws_path}/../src/fogros2-sgc"
+        # directory of all the config files
+        config_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs" if not config_path else config_path
+        # directory of all the crypto files
+        crypto_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs/crypto/test_cert/test_cert-private.pem"
+        # check if the crypto files are generated, if not, generate them
+        if not os.path.isfile(crypto_path):
+            logger.info(f"crypto file does not exist in {crypto_path}, generating...")
+            subprocess.call([f"cd {ws_path}/sgc_launch/share/sgc_launch/configs && ./generate_crypto.sh"],  shell=True)
+        
+        # setup the config path
+        current_env["SGC_CONFIG"] = f"{config_path}/automatic.toml"
+        # setup crypto path
+        current_env["SGC_CRYPTO_PATH"] = f"{crypto_path}"
+
+        if automatic_mode:
+            logger.info("automatic discovery is enabled")  
+        else:
+            config_path = f"{config_path}/{config_file_name}"
+            logger.info(f"using yaml config file {config_path}")
+            self.swarm = SGC_Swarm(config_path, whoami, logger)
+            
+
+        # build and run SGC
+        logger.info("building FogROS SGC... It takes longer for first time")
+        # remove the stale SGC router
+        subprocess.call("kill $(ps aux | grep 'gdp-router' | awk '{print $2}')", env=current_env,  shell=True)
+        if release_mode:
+            subprocess.call(f"cargo build --release --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
+            subprocess.Popen(f"cargo run --release --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
+        else:
+            subprocess.call(f"cargo build --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
+            subprocess.Popen(f"cargo run --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
+
     def discovery_callback(self):
         current_env = os.environ.copy()
         output = subprocess.run(f"ros2 topic list -t", env=current_env, capture_output=True, text=True,  shell=True).stdout
