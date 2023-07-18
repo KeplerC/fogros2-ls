@@ -45,9 +45,40 @@ We observe that the cloud services are usually the reversed of the robots' confi
 
 In the example, the configuration configures `whoami` as `machine_talker`, which is assigned with the `talker`'s state (at a`assignment`). The `talker` state is defined to `pub` (publish) to the topic `chatter`. The `chatter` is configured to be of type `std_msgs/msgs/String`. Vise versa, the listener only need to set `whoami` as `machine_listener`, and the states (how the topics are handled) are automated. 
 
-### Automated version without configuration file 
 
-SGC supports autoamtic topic discovery by simply not setting the configuration file. This works with heristics that if the topic misses the publisher (publisher count = 0), then it exposes as a remote subscriber, and vise versa. 
+## Examples 
+
+### Profiling Example 
+Remember to `colcon build` and `source install/setup.bash` the workspace. 
+
+On local robot, run robot sensors by 
+```
+ros2 launch sgc_launch profiler.robot.launch.py 
+```
+then we run the local service modules by 
+```
+ROS_DOMAIN_ID=2 ros2 launch sgc_launch profiler.service.local.launch.py
+```
+We use different domain ID, and use FogROS-SGC to bridge them. 
+
+
+On the cloud, run 
+```
+ROS_DOMAIN_ID=1 ros2 launch sgc_launch profiler.service.cloud.launch.py
+```
+by default, the cloud will be in standby state and only active when reconfigured. 
+
+
+For reconfiguration, run 
+```
+ROS_DOMAIN_ID=2 ros2 service call /sgc_assignment_service sgc_msgs/srv/SgcAssignment '{machine: {data: "machine_local"}, state: {data: "standby"} }'
+```
+to change the local service to be the standby mode (doesn't do anything). 
+To resume, run 
+```
+ROS_DOMAIN_ID=2 ros2 service call /sgc_assignment_service sgc_msgs/srv/SgcAssignment '{machine: {data: "machine_local"}, state: {data: "service"} }'
+```
+TODO: later wrap this in a more user friendly CLI
 
 
 ### H264 Example 
@@ -58,3 +89,10 @@ git clone https://github.com/KeplerC/h264_image_transport.git
 ```
 
 The SGC will automatically incoperate H264 streaming ROS2 message type in its build system. 
+
+
+### Automated version without configuration file 
+
+SGC supports autoamtic topic discovery by simply not setting the configuration file. This works with heristics that if the topic misses the publisher (publisher count = 0), then it exposes as a remote subscriber, and vise versa. 
+
+

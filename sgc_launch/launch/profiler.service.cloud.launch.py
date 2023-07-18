@@ -39,6 +39,8 @@ def generate_launch_description():
     """Talker example that launches everything locally."""
     ld = LaunchDescription()
 
+    # here we use `stress` to emulate the actual workload 
+    # replace this with the acutal modules 
     talker_node = Node(
         package="bench", executable="listener_stress", output="screen"
     )
@@ -48,7 +50,7 @@ def generate_launch_description():
     profiler_node = Node(
         package="bench", executable="profiler",
         parameters = [
-            {"machine_name" : "cloud_machine"}
+            {"machine_name" : "machine_cloud"}
         ]
     )
 

@@ -29,5 +29,5 @@ state_machine:
 
 assignment:
   robot: robot
-  machine_local: standby
-  machine_cloud: service
+  machine_local: service
+  machine_cloud: standby
