@@ -167,7 +167,7 @@ class SGC_Router_Node(rclpy.node.Node):
         self.declare_parameter("config_path", "")
         self.config_path = self.get_parameter("config_path").value
 
-        self.declare_parameter("sgc_base_port", 3000)
+        self.declare_parameter("sgc_base_port", 3000) # port = base_port + ROS_DOMAIN_ID
         self.sgc_base_port = self.get_parameter("sgc_base_port").value
 
         self.declare_parameter("config_file_name", "PARAMETER NOT SET") # ROS2 parameter is strongly typed

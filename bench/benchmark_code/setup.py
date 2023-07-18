@@ -55,6 +55,7 @@ setup(
             "listener_throughput = bench.listener_throughput:main",
             "talker = bench.talker:main",
             "listener = bench.listener:main",
+            "profiler = bench.profiler:main",
         ],
     },
 )
