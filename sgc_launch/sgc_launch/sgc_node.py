@@ -40,7 +40,7 @@ class SGC_StateMachine:
 class SGC_Swarm: 
     def __init__(self, yaml_config, 
                  whoami, logger,
-                 sgc_address="localhost:3000"):
+                 sgc_address):
         # the identifers for the task and ROS instance
         self.task_identifier = None 
         self.instance_identifer = whoami 
@@ -167,8 +167,15 @@ class SGC_Router_Node(rclpy.node.Node):
         self.declare_parameter("config_path", "")
         self.config_path = self.get_parameter("config_path").value
 
+        self.declare_parameter("sgc_base_port", 3000)
+        self.sgc_base_port = self.get_parameter("sgc_base_port").value
+
         self.declare_parameter("config_file_name", "PARAMETER NOT SET") # ROS2 parameter is strongly typed
         self.config_file_name = self.get_parameter("config_file_name").value
+
+        self.ros_domain_id = os.getenv('ROS_DOMAIN_ID') if os.getenv('ROS_DOMAIN_ID') else 0
+        self.sgc_router_api_port = self.sgc_base_port + int(self.ros_domain_id)
+        self.sgc_router_api_addr = f"localhost:{self.sgc_router_api_port}"
 
         if self.config_file_name == "PARAMETER NOT SET":
             
@@ -226,13 +233,20 @@ class SGC_Router_Node(rclpy.node.Node):
         else:
             config_path = f"{config_path}/{config_file_name}"
             logger.info(f"using yaml config file {config_path}")
-            self.swarm = SGC_Swarm(config_path, whoami, logger)
+            self.swarm = SGC_Swarm(config_path, whoami, logger, self.sgc_router_api_addr)
             
 
         # build and run SGC
         logger.info("building FogROS SGC... It takes longer for first time")
-        # remove the stale SGC router
-        subprocess.call("kill $(ps aux | grep 'gdp-router' | awk '{print $2}')", env=current_env,  shell=True)
+        # remove the stale SGC router if the domain id is the same 
+        grep_result = subprocess.run(f"lsof -i -P -n | grep LISTEN | grep {self.sgc_router_api_port}", env=current_env, capture_output=True, text=True,  shell=True).stdout
+        if grep_result:
+            logger.warn("Previous run of SGC router in the same domain is running, killing it...")
+            pid = grep_result.split()[1]
+            subprocess.call(f"kill {pid}", env=current_env,  shell=True)
+        # check if the port exists
+        current_env["SGC_API_PORT"] = str(self.sgc_router_api_port)
+
         if release_mode:
             subprocess.call(f"cargo build --release --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
             subprocess.Popen(f"cargo run --release --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
@@ -260,11 +274,11 @@ class SGC_Router_Node(rclpy.node.Node):
                 if "Subscription count: 0" in output:
                     self.get_logger().info(f"publish {topic_name} as a remote publisher")
                     topic_action = "pub"
-                    send_request("add", topic_action, topic_name, topic_type, "localhost:3000")
+                    send_request("add", topic_action, topic_name, topic_type, self.sgc_router_api_addr)
                 elif "Publisher count: 0" in output:
                     self.get_logger().info(f"publish {topic_name} as a remote subscriber")
                     topic_action = "sub"
-                    send_request("add", topic_action, topic_name, topic_type, "localhost:3000")
+                    send_request("add", topic_action, topic_name, topic_type, self.sgc_router_api_addr)
                 else:
                     self.get_logger().info(f"cannot determine {topic_name} direction")
                 self.discovered_topics.append(topic_name)
