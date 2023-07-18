@@ -47,16 +47,21 @@ class Profiler_Node(Node):
         super().__init__('Profiler_Node')
         self.declare_parameter("machine_name", "local")
         self.machine_name = self.get_parameter("machine_name").value
+
+        self.declare_parameter("select_process", [""])
+        self.process_names = self.get_parameter("select_process").value
+
         timer_period = 0.5  # seconds
         global_cpu_publisher = self.create_publisher(String, "cpu_global", 10)
         top_cpu_publisher = self.create_publisher(String, "cpu_top", 10)
+        select_cpu_publisher = self.create_publisher(String, "cpu_select", 10)
         host_name = socket.gethostname()
         host_ip = socket.gethostbyname(host_name)
 
         def global_cpu_usage():
             msg = String()
             cpu_percent = psutil.cpu_percent(interval=1)
-            msg.data = f"{self.machine_name}, {cpu_percent}"
+            msg.data = f"{self.machine_name}, {cpu_percent},{psutil.virtual_memory()[2]}"
             # node.get_logger().warning('Publishing: "%s"' % msg.data)
             global_cpu_publisher.publish(msg)
 
@@ -64,20 +69,41 @@ class Profiler_Node(Node):
 
         def top_cpu_usage():
             msg = String()
+            msg.data += self.machine_name
             output = subprocess.run(f"top -b -n 5 | head -n 12 | tail -n 5", capture_output=True, text=True,  shell=True).stdout
 
             for line in output.split("\n"):
                 if not line:
                     continue
                 process_name = line.split()[-1]
-                process_cpu_usage = float(line.split()[-4]) / multiprocessing.cpu_count()
-                msg.data = f"{self.machine_name}, {process_name}, {process_cpu_usage}"
+                process_cpu_usage = float(line.split()[-4]) / psutil.cpu_count()
+                process_mem_usage = float(line.split()[-3])
+                msg.data+=(f",{process_name},{process_cpu_usage},{process_mem_usage}")
                 # node.get_logger().warning('Publishing: "%s"' % msg.data)
-                top_cpu_publisher.publish(msg)
+            top_cpu_publisher.publish(msg)
 
         timer = self.create_timer(timer_period, top_cpu_usage)
 
+        def select_cpu_usage():
+            msg = String()
+            msg.data += self.machine_name
+            for process in self.process_names:
+                if process == "":
+                    continue 
+                output = subprocess.run(f"pidof -x {process}", capture_output=True, text=True,  shell=True).stdout
+                self.get_logger().info(output)
+                process_name = process
+                if not output:
+                    self.get_logger().warn(f"No process named {process}")
+                for process_id in output.split():  
+                    if not process_id:
+                        continue
+                    process_stat = psutil.Process(int(process_id))
+                    process_cpu_usage = process_stat.cpu_percent() / psutil.cpu_count()
+                    msg.data+=(f", {process_name}, {process_cpu_usage}, {process_stat.memory_percent}")
+            select_cpu_publisher.publish(msg)
 
+        timer = self.create_timer(timer_period, select_cpu_usage)
 
 def main(args=None):
     rclpy.init(args=args)

@@ -50,7 +50,8 @@ def generate_launch_description():
     profiler_node = Node(
         package="bench", executable="profiler",
         parameters = [
-            {"machine_name" : "machine_cloud"}
+            {"machine_name" : "cloud"},  # anything you like, used to differentiate different machines 
+            {"select_process" : ["stress, node"]}, # the process name, use `top` or `ps` to find out
         ]
     )
 
