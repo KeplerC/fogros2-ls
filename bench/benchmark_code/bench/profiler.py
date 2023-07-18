@@ -34,6 +34,7 @@
 import socket
 
 import rclpy
+from rclpy.node import Node
 from std_msgs.msg import String
 from time import sleep 
 # pip install psutil
@@ -41,48 +42,47 @@ import psutil
 import subprocess 
 import multiprocessing
 
+class Profiler_Node(Node):
+    def __init__(self):
+        super().__init__('Profiler_Node')
+        self.declare_parameter("machine_name", "local")
+        self.machine_name = self.get_parameter("machine_name").value
+        timer_period = 0.5  # seconds
+        global_cpu_publisher = self.create_publisher(String, "cpu_global", 10)
+        top_cpu_publisher = self.create_publisher(String, "cpu_top", 10)
+        host_name = socket.gethostname()
+        host_ip = socket.gethostbyname(host_name)
+
+        def global_cpu_usage():
+            msg = String()
+            cpu_percent = psutil.cpu_percent(interval=1)
+            msg.data = f"{self.machine_name}, {cpu_percent}"
+            # node.get_logger().warning('Publishing: "%s"' % msg.data)
+            global_cpu_publisher.publish(msg)
+
+        timer = self.create_timer(timer_period, global_cpu_usage)
+
+        def top_cpu_usage():
+            msg = String()
+            output = subprocess.run(f"top -b -n 5 | head -n 12 | tail -n 5", capture_output=True, text=True,  shell=True).stdout
+
+            for line in output.split("\n"):
+                if not line:
+                    continue
+                process_name = line.split()[-1]
+                process_cpu_usage = float(line.split()[-4]) / multiprocessing.cpu_count()
+                msg.data = f"{self.machine_name}, {process_name}, {process_cpu_usage}"
+                # node.get_logger().warning('Publishing: "%s"' % msg.data)
+                top_cpu_publisher.publish(msg)
+
+        timer = self.create_timer(timer_period, top_cpu_usage)
+
 
 
 def main(args=None):
     rclpy.init(args=args)
-    timer_period = 0.5  # seconds
-    node = rclpy.create_node("minimal_publisher")
-    global_cpu_publisher = node.create_publisher(String, "cpu_global", 10)
-    top_cpu_publisher = node.create_publisher(String, "cpu_top", 10)
-    host_name = socket.gethostname()
-    host_ip = socket.gethostbyname(host_name)
-
-    def global_cpu_usage():
-        msg = String()
-        cpu_percent = psutil.cpu_percent(interval=1)
-        msg.data = f"{cpu_percent}"
-        # node.get_logger().warning('Publishing: "%s"' % msg.data)
-        global_cpu_publisher.publish(msg)
-
-    timer = node.create_timer(timer_period, global_cpu_usage)
-
-    def top_cpu_usage():
-        msg = String()
-        output = subprocess.run(f"top -b -n 5 | head -n 12 | tail -n 5", capture_output=True, text=True,  shell=True).stdout
-
-        for line in output.split("\n"):
-            if not line:
-                continue
-            process_name = line.split()[-1]
-            process_cpu_usage = float(line.split()[-4]) / multiprocessing.cpu_count()
-            msg.data = f"{process_name}, {process_cpu_usage}"
-            # node.get_logger().warning('Publishing: "%s"' % msg.data)
-            top_cpu_publisher.publish(msg)
-
-    timer = node.create_timer(timer_period, top_cpu_usage)
-
+    node = Profiler_Node()
     rclpy.spin(node)
-
-    # Destroy the timer attached to the node explicitly
-    # (optional - otherwise it will be done automatically
-    # when the garbage collector destroys the node object)
-    node.destroy_timer(timer)
-    node.destroy_node()
     rclpy.shutdown()
 
 
