@@ -47,6 +47,9 @@ def generate_launch_description():
 
     profiler_node = Node(
         package="bench", executable="profiler",
+        parameters = [
+            {"machine_name" : "robot"}
+        ]
     )
 
     ld.add_action(profiler_node)

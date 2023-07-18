@@ -20,13 +20,14 @@ state_machine:
       - /cpu_global: pub 
       - /cpu_local: pub 
       - /chatter: sub 
-  sensor:
+  robot:
     topics:
-      - /cpu_global: pub 
-      - /cpu_local: pub 
+    # robot needs to subscribe to the cpu messages from the services 
+      - /cpu_global: sub 
+      - /cpu_local: sub 
       - /chatter: pub
 
 assignment:
-  robot: sensor
+  robot: robot
   machine_local: standby
   machine_cloud: service

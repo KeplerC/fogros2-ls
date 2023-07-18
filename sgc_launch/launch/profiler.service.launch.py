@@ -40,17 +40,20 @@ def generate_launch_description():
     ld = LaunchDescription()
 
     talker_node = Node(
-        package="bench", executable="listener", output="screen"
+        package="bench", executable="listener_stress", output="screen"
     )
 
     ld.add_action(talker_node)
 
     profiler_node = Node(
         package="bench", executable="profiler",
+        parameters = [
+            {"machine_name" : "cloud_machine"}
+        ]
     )
 
     ld.add_action(profiler_node)
-    
+
     sgc_router = Node(
         package="sgc_launch",
         executable="sgc_router", 
