@@ -53,6 +53,7 @@ setup(
             "listener_latency = bench.listener_latency:main",
             "talker_throughput = bench.talker_throughput:main",
             "listener_throughput = bench.listener_throughput:main",
+            "listener_stress = bench.listener_stress:main",
             "talker = bench.talker:main",
             "listener = bench.listener:main",
             "profiler = bench.profiler:main",

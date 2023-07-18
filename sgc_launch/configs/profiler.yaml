@@ -1,0 +1,32 @@
+
+identifiers: 
+  task: test_cert 
+  
+topics:
+  - topic_name: /chatter
+    topic_type: std_msgs/msg/String
+  - topic_name: /cpu_global
+    topic_type: std_msgs/msg/String
+  - topic_name: /cpu_local
+    topic_type: std_msgs/msg/String
+
+state_machine: 
+  standby: 
+    topics:
+      - /cpu_global: pub 
+      - /cpu_local: pub 
+  service: 
+    topics:
+      - /cpu_global: pub 
+      - /cpu_local: pub 
+      - /chatter: sub 
+  sensor:
+    topics:
+      - /cpu_global: pub 
+      - /cpu_local: pub 
+      - /chatter: pub
+
+assignment:
+  robot: sensor
+  machine_local: standby
+  machine_cloud: service
