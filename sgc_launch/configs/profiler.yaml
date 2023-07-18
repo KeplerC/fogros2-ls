@@ -7,24 +7,24 @@ topics:
     topic_type: std_msgs/msg/String
   - topic_name: /cpu_global
     topic_type: std_msgs/msg/String
-  - topic_name: /cpu_local
+  - topic_name: /cpu_top
     topic_type: std_msgs/msg/String
 
 state_machine: 
   standby: 
     topics:
       - /cpu_global: pub 
-      - /cpu_local: pub 
+      - /cpu_top: pub 
   service: 
     topics:
       - /cpu_global: pub 
-      - /cpu_local: pub 
+      - /cpu_top: pub 
       - /chatter: sub 
   robot:
     topics:
     # robot needs to subscribe to the cpu messages from the services 
       - /cpu_global: sub 
-      - /cpu_local: sub 
+      - /cpu_top: sub 
       - /chatter: pub
 
 assignment:
