@@ -38,7 +38,7 @@ class SGC_Analyzer(rclpy.node.Node):
             self.response_topic_callback,
             10)
         
-        self.status_publisher = self.create_publisher(Profile, 'sgc_profile', 10)
+        self.status_publisher = self.create_publisher(Profile, 'fogros_sgc/profile', 10)
 
         self.profile = Profile()
         self.profile.identity.data = identity
