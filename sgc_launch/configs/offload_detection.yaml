@@ -1,0 +1,29 @@
+
+identifiers: 
+  task: test_cert 
+  
+topics:
+  - topic_name: /offload_detection/profile/cloud
+    topic_type: offload_detection/msg/Profile
+  - topic_name: /offload_detection/scheduler_yolo/input/cloud
+    topic_type: sensor_msgs/msg/CompressedImage
+  - topic_name: /offload_detection/scheduler_yolo/output/cloud
+    topic_type: sensor_msgs/msg/CompressedImage
+
+state_machine: 
+  standby: 
+  robot: 
+    topics:
+      - /offload_detection/profile/cloud: sub
+      - /offload_detection/scheduler_yolo/input/cloud: pub 
+      - /offload_detection/scheduler_yolo/output/cloud: sub 
+  service: 
+    topics:
+      - /offload_detection/profile/cloud: pub
+      - /offload_detection/scheduler_yolo/input/cloud: sub 
+      - /offload_detection/scheduler_yolo/output/cloud: pub 
+
+assignment:
+  robot: robot
+  machine_local: service
+  machine_cloud: standby
