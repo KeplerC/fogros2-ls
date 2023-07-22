@@ -313,12 +313,13 @@ def main(args=None):
 
     # you'll probably want to append your own node here
     spin_queue.append(SGC_Router_Node())
-    spin_queue.append(SGC_Analyzer("/offload_detection/scheduler_yolo/input/cloud",
-                                   "sensor_msgs/msg/CompressedImage",
-                                   "/offload_detection/scheduler_yolo/output/cloud",
-                                   "sensor_msgs/msg/CompressedImage",
-                                   10
-                                   ))
+    spin_queue.append(SGC_Analyzer("identity",
+                                    "/offload_detection/scheduler_yolo/input/cloud",
+                                    "sensor_msgs/msg/CompressedImage",
+                                    "/offload_detection/scheduler_yolo/output/cloud",
+                                    "sensor_msgs/msg/CompressedImage",
+                                    10
+                                    ))
 
 
     while rclpy.ok():

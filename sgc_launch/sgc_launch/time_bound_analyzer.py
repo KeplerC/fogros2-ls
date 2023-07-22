@@ -2,14 +2,18 @@
 import subprocess, os, yaml
 import requests
 import pprint
+import socket 
 import time 
 import rclpy
 import rclpy.node
-
+from sgc_msgs.msg import Profile
 from .utils import get_ROS_class
+import psutil
 
 class SGC_Analyzer(rclpy.node.Node):
-    def __init__(self,
+    def __init__(
+            self,
+            identity,
             request_topic, 
             request_topic_type,
             response_topic, 
@@ -33,6 +37,17 @@ class SGC_Analyzer(rclpy.node.Node):
             response_topic,
             self.response_topic_callback,
             10)
+        
+        self.status_publisher = self.create_publisher(Profile, 'sgc_profile', 10)
+
+        self.profile = Profile()
+        self.profile.identity.data = identity
+        self.profile.ip_addr.data = socket.gethostname()
+        self.profile.num_cpu_core = psutil.cpu_count()
+        freq = [freq.current for freq in psutil.cpu_freq(True)]
+        average_freq = sum(freq) / len(freq)
+        self.logger.info(f"{freq}")
+        self.profile.cpu_frequency = float(average_freq)
 
         self.create_timer(1, self.timer_callback)
 
@@ -47,12 +62,14 @@ class SGC_Analyzer(rclpy.node.Node):
 
     def request_topic_callback(self, msg):
         self.last_request_time = time.time_ns()
-        self.logger.info(f"request_topic_time: {self.last_request_time}")
     def response_topic_callback(self, msg):
         self.latency_sliding_window.append(time.time_ns() - self.last_request_time)
-        self.logger.info(f"response_topic_time: {self.latency_sliding_window}")
 
     def timer_callback(self):
+        latency = 0
         if self.latency_sliding_window:
-            self.get_logger().info(f"Average latency is {sum(self.latency_sliding_window) / len(self.latency_sliding_window) / 1000000000}")
+            latency = sum(self.latency_sliding_window) / len(self.latency_sliding_window) / 1000000000
+            self.get_logger().info(f"Average latency is {latency}")
         self.latency_sliding_window = []
+        self.profile.latency = float(latency)
+        self.status_publisher.publish(self.profile)
