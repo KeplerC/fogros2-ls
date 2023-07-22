@@ -8,6 +8,7 @@ import rclpy
 import rclpy.node
 from rcl_interfaces.msg import SetParametersResult
 from sgc_msgs.srv import SgcAssignment
+from .time_bound_analyzer import SGC_Analyzer
 
 def send_request(
     api_op, 
@@ -297,10 +298,37 @@ class SGC_Router_Node(rclpy.node.Node):
     #     all_new_parameters = [my_new_param]
     #     self.set_parameters(all_new_parameters)
 
-def main():
-    rclpy.init()
-    node = SGC_Router_Node()
-    rclpy.spin(node)
+# def main():
+#     rclpy.init()
+#     node = SGC_Router_Node()
+
+#     rclpy.spin(node)
+
+spin_queue = []
+PERIOD = 0.01
+
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    # you'll probably want to append your own node here
+    spin_queue.append(SGC_Router_Node())
+    spin_queue.append(SGC_Analyzer("/offload_detection/scheduler_yolo/input/cloud",
+                                   "sensor_msgs/msg/CompressedImage",
+                                   "/offload_detection/scheduler_yolo/output/cloud",
+                                   "sensor_msgs/msg/CompressedImage",
+                                   10
+                                   ))
+
+
+    while rclpy.ok():
+        try:
+            for node in spin_queue:
+                rclpy.spin_once(node, timeout_sec=(PERIOD / len(spin_queue)))
+        except Exception as e:
+            print(f"something went wrong in the ROS Loop: {e}")
+
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
