@@ -286,24 +286,6 @@ class SGC_Router_Node(rclpy.node.Node):
             # TODO: remove a topic when the topic is gone 
 
 
-    # self.timer = self.create_timer(1, self.timer_callback)
-    # def timer_callback(self):
-    #     my_param = self.get_parameter('my_parameter').get_parameter_value().string_value
-    #     self.get_logger().info('Hello %s!' % my_param)
-    #     my_new_param = rclpy.parameter.Parameter(
-    #         'my_parameter',
-    #         rclpy.Parameter.Type.STRING,
-    #         'world'
-    #     )
-    #     all_new_parameters = [my_new_param]
-    #     self.set_parameters(all_new_parameters)
-
-# def main():
-#     rclpy.init()
-#     node = SGC_Router_Node()
-
-#     rclpy.spin(node)
-
 spin_queue = []
 PERIOD = 0.01
 
@@ -311,9 +293,10 @@ PERIOD = 0.01
 def main(args=None):
     rclpy.init(args=args)
 
+    router_node = SGC_Router_Node()
     # you'll probably want to append your own node here
-    spin_queue.append(SGC_Router_Node())
-    spin_queue.append(SGC_Analyzer("identity",
+    spin_queue.append(router_node)
+    spin_queue.append(SGC_Analyzer(router_node.whoami,
                                     "/offload_detection/scheduler_yolo/input/cloud",
                                     "sensor_msgs/msg/CompressedImage",
                                     "/offload_detection/scheduler_yolo/output/cloud",
