@@ -22,7 +22,7 @@ class SGC_Analyzer(rclpy.node.Node):
             request_topic_type,
             response_topic, 
             response_topic_type,
-            latency_bound = 10
+            latency_bound = 0.2
             ):
         super().__init__('sgc_time_bound_analyzer')
         # self.source_topic = request_topic
@@ -47,13 +47,13 @@ class SGC_Analyzer(rclpy.node.Node):
             get_ROS_class(request_topic_type),
             request_topic,
             self.request_topic_callback,
-            10)
+            1)
 
         self.response_topic = self.create_subscription(
             get_ROS_class(response_topic_type),
             response_topic,
             self.response_topic_callback,
-            10)
+            1)
         
         self.status_publisher = self.create_publisher(Profile, 'fogros_sgc/profile', 10)
 
@@ -75,7 +75,7 @@ class SGC_Analyzer(rclpy.node.Node):
 
         self.machine_dict[self.identity] = self.profile
 
-        self.create_timer(1, self.timer_callback)
+        self.create_timer(3, self.timer_callback)
 
         # Current heuristic: 
         # response_timestamp - the latest previous request timestamp 
@@ -87,9 +87,12 @@ class SGC_Analyzer(rclpy.node.Node):
         self.latency_sliding_window = []
 
     def request_topic_callback(self, msg):
-        self.last_request_time = time.time_ns()
+        self.last_request_time = time.time()
+        self.logger.info(f"request: {self.last_request_time}")
+
     def response_topic_callback(self, msg):
-        self.latency_sliding_window.append(time.time_ns() - self.last_request_time)
+        self.latency_sliding_window.append((time.time() - self.last_request_time))
+        self.logger.info(f"response: {time.time()}, {(time.time() - self.last_request_time)}")
 
     # run every second to calculate the profile message and publish
     def timer_callback(self):
@@ -100,8 +103,8 @@ class SGC_Analyzer(rclpy.node.Node):
         # )
         
         if self.latency_sliding_window:
-            latency = sum(self.latency_sliding_window) / len(self.latency_sliding_window) / 1000000000
-            self.get_logger().info(f"Average latency is {latency}")
+            latency = sum(self.latency_sliding_window) / len(self.latency_sliding_window) # / 1000000000
+            self.get_logger().info(f"Average latency is {latency} out of {sorted(self.latency_sliding_window)}")
             self.latency_df = pd.concat(
                 [self.latency_df, pd.DataFrame([
                     {
@@ -123,7 +126,6 @@ class SGC_Analyzer(rclpy.node.Node):
             # updates 
             return 
         self.machine_dict[profile_update.identity.data] = profile_update
-        # self.latency_df.at[-1, "machine_local"] = profile_update.latency
         if profile_update.latency:
             self.latency_df = pd.concat(
                     [self.latency_df, pd.DataFrame([
@@ -136,8 +138,11 @@ class SGC_Analyzer(rclpy.node.Node):
                 )
 
     def plot_latency_history(self):
-        print(self.latency_df.to_string())
-        sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "robot")
-        sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local")
-        plt.savefig("./plot.png")
+        try:
+            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "robot")
+            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local")
+            plt.savefig("./plot.png")
+        except:
+            pass
+        
 

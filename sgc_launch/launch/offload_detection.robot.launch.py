@@ -41,7 +41,7 @@ def generate_launch_description():
         parameters = [
             {"edge_on": False},
             {"cloud_on": True},
-            {"max_framerate": 30.0},
+            {"max_framerate": 10.0},
             {"detector_timeout": 10.0}])
     launch_description.add_action(scheduler)
     
