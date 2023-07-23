@@ -9,6 +9,7 @@ import rclpy.node
 from sgc_msgs.msg import Profile
 from .utils import get_ROS_class
 import psutil
+import matplotlib.pyplot as plt
 
 class SGC_Analyzer(rclpy.node.Node):
     def __init__(
@@ -25,6 +26,13 @@ class SGC_Analyzer(rclpy.node.Node):
         # self.response = response_topic
         self.latency_bound = latency_bound
         self.logger = self.get_logger()
+        self.identity = identity
+
+        self.machine_dict = dict()
+        self.latency_dict = {
+            "timestamp": [],
+            self.identity: []
+        }
 
         self.request_topic = self.create_subscription(
             get_ROS_class(request_topic_type),
@@ -40,6 +48,13 @@ class SGC_Analyzer(rclpy.node.Node):
         
         self.status_publisher = self.create_publisher(Profile, 'fogros_sgc/profile', 10)
 
+        # subscribe to the profile topic from other machines (if any)
+        self.status_topic = self.create_subscription(
+            Profile,
+            'fogros_sgc/profile',
+            self.profile_topic_callback,
+            10)
+        
         self.profile = Profile()
         self.profile.identity.data = identity
         self.profile.ip_addr.data = socket.gethostname()
@@ -48,6 +63,8 @@ class SGC_Analyzer(rclpy.node.Node):
         average_freq = sum(freq) / len(freq)
         self.logger.info(f"{freq}")
         self.profile.cpu_frequency = float(average_freq)
+
+        self.machine_dict[self.identity] = self.profile
 
         self.create_timer(1, self.timer_callback)
 
@@ -65,11 +82,26 @@ class SGC_Analyzer(rclpy.node.Node):
     def response_topic_callback(self, msg):
         self.latency_sliding_window.append(time.time_ns() - self.last_request_time)
 
+    # run every second to calculate the profile message and publish
     def timer_callback(self):
         latency = 0
         if self.latency_sliding_window:
             latency = sum(self.latency_sliding_window) / len(self.latency_sliding_window) / 1000000000
             self.get_logger().info(f"Average latency is {latency}")
+            self.latency_dict[self.identity].append(self.profile.latency)
         self.latency_sliding_window = []
         self.profile.latency = float(latency)
         self.status_publisher.publish(self.profile)
+        self.plot_latency_history()
+
+    def profile_topic_callback(self, profile_update):
+        if profile_update.identity.data == self.identity:
+            # same update from its own publisher, we are only interested in other machine's
+            # updates 
+            return 
+        self.machine_dict[profile_update.identity.data] = profile_update
+
+    def plot_latency_history(self):
+        plt.plot(self.latency_dict[self.identity])
+        plt.savefig("./plot.png")
+
