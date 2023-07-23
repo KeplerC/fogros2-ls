@@ -301,7 +301,7 @@ def main(args=None):
                                     "sensor_msgs/msg/CompressedImage",
                                     "/offload_detection/scheduler_yolo/output/cloud",
                                     "sensor_msgs/msg/CompressedImage",
-                                    10
+                                    0.4
                                     ))
 
 

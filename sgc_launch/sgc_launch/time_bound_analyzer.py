@@ -22,7 +22,7 @@ class SGC_Analyzer(rclpy.node.Node):
             request_topic_type,
             response_topic, 
             response_topic_type,
-            latency_bound = 0.2
+            latency_bound = 1
             ):
         super().__init__('sgc_time_bound_analyzer')
         # self.source_topic = request_topic
@@ -94,6 +94,23 @@ class SGC_Analyzer(rclpy.node.Node):
         self.latency_sliding_window.append((time.time() - self.last_request_time))
         self.logger.info(f"response: {time.time()}, {(time.time() - self.last_request_time)}")
 
+    def profile_topic_callback(self, profile_update):
+        if profile_update.identity.data == self.identity:
+            # same update from its own publisher, we are only interested in other machine's
+            # updates 
+            return 
+        self.machine_dict[profile_update.identity.data] = profile_update
+        if profile_update.latency:
+            self.latency_df = pd.concat(
+                    [self.latency_df, pd.DataFrame([
+                        {
+                        "timestamp": self.current_timestamp,
+                        "robot": np.nan,
+                        "machine_local": profile_update.latency,
+                        }
+                    ])]
+                )
+            
     # run every second to calculate the profile message and publish
     def timer_callback(self):
         latency = 0
@@ -120,27 +137,11 @@ class SGC_Analyzer(rclpy.node.Node):
         self.status_publisher.publish(self.profile)
         self.plot_latency_history()
 
-    def profile_topic_callback(self, profile_update):
-        if profile_update.identity.data == self.identity:
-            # same update from its own publisher, we are only interested in other machine's
-            # updates 
-            return 
-        self.machine_dict[profile_update.identity.data] = profile_update
-        if profile_update.latency:
-            self.latency_df = pd.concat(
-                    [self.latency_df, pd.DataFrame([
-                        {
-                        "timestamp": self.current_timestamp,
-                        "robot": np.nan,
-                        "machine_local": profile_update.latency,
-                        }
-                    ])]
-                )
-
     def plot_latency_history(self):
         try:
             sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "robot")
             sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local")
+            plt.axhline(y = self.latency_bound, color = 'r', linestyle = '-')
             plt.savefig("./plot.png")
         except:
             pass
