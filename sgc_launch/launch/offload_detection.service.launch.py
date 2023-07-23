@@ -34,6 +34,7 @@ def generate_launch_description():
             {"response_topic_name": "/offload_detection/scheduler_yolo/output/cloud"}, 
             {"response_topic_type": "sensor_msgs/msg/CompressedImage"}, 
             {"latency_bound" : 0.4}, 
+            {"plot" : False}, 
         ]
     )
     launch_description.add_action(time_bound_analyzer)

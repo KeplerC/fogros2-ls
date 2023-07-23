@@ -31,6 +31,8 @@ class SGC_Analyzer(rclpy.node.Node):
         response_topic = self.get_parameter("response_topic_name").value
         self.declare_parameter("response_topic_type", "")
         response_topic_type = self.get_parameter("response_topic_type").value
+        self.declare_parameter("plot", False)
+        self.plot = self.get_parameter("plot").value
 
         self.logger = self.get_logger()
 
@@ -138,12 +140,14 @@ class SGC_Analyzer(rclpy.node.Node):
         self.latency_sliding_window = []
         self.profile.latency = float(latency)
         self.status_publisher.publish(self.profile)
-        self.plot_latency_history()
+        if self.plot:
+            self.plot_latency_history()
 
     def plot_latency_history(self):
         try:
-            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "robot")
-            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local")
+            #https://stackoverflow.com/questions/56170909/seaborn-lineplot-high-cpu-very-slow-compared-to-matplotlib
+            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "robot", errorbar=None)
+            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local", errorbar=None)
             plt.axhline(y = self.latency_bound, color = 'r', linestyle = '-')
             plt.savefig("./plot.png")
         except:
