@@ -10,6 +10,9 @@ from sgc_msgs.msg import Profile
 from .utils import get_ROS_class
 import psutil
 import matplotlib.pyplot as plt
+import pandas as pd 
+import seaborn as sns
+import numpy as np 
 
 class SGC_Analyzer(rclpy.node.Node):
     def __init__(
@@ -29,10 +32,16 @@ class SGC_Analyzer(rclpy.node.Node):
         self.identity = identity
 
         self.machine_dict = dict()
-        self.latency_dict = {
-            "timestamp": [],
-            self.identity: []
-        }
+        self.current_timestamp = int(time.time()) + 1
+        self.latency_df = pd.DataFrame(
+            [{
+                "timestamp": self.current_timestamp,
+                "robot": np.nan,
+                "machine_local": np.nan,
+            }]
+        )
+        # used for maintaining the current dataframe index
+        
 
         self.request_topic = self.create_subscription(
             get_ROS_class(request_topic_type),
@@ -85,10 +94,24 @@ class SGC_Analyzer(rclpy.node.Node):
     # run every second to calculate the profile message and publish
     def timer_callback(self):
         latency = 0
+        self.current_timestamp = int(time.time()) + 1 # round up
+        # self.latency_df = pd.concat(
+        #     [self.latency_df, pd.DataFrame([current_timestamp, None, None])], ignore_index=True
+        # )
+        
         if self.latency_sliding_window:
             latency = sum(self.latency_sliding_window) / len(self.latency_sliding_window) / 1000000000
             self.get_logger().info(f"Average latency is {latency}")
-            self.latency_dict[self.identity].append(self.profile.latency)
+            self.latency_df = pd.concat(
+                [self.latency_df, pd.DataFrame([
+                    {
+                    "timestamp": self.current_timestamp,
+                    "robot": latency,
+                    "machine_local": np.nan,
+                    }
+                ])]
+            )
+            
         self.latency_sliding_window = []
         self.profile.latency = float(latency)
         self.status_publisher.publish(self.profile)
@@ -100,8 +123,21 @@ class SGC_Analyzer(rclpy.node.Node):
             # updates 
             return 
         self.machine_dict[profile_update.identity.data] = profile_update
+        # self.latency_df.at[-1, "machine_local"] = profile_update.latency
+        if profile_update.latency:
+            self.latency_df = pd.concat(
+                    [self.latency_df, pd.DataFrame([
+                        {
+                        "timestamp": self.current_timestamp,
+                        "robot": np.nan,
+                        "machine_local": profile_update.latency,
+                        }
+                    ])]
+                )
 
     def plot_latency_history(self):
-        plt.plot(self.latency_dict[self.identity])
+        print(self.latency_df.to_string())
+        sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "robot")
+        sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local")
         plt.savefig("./plot.png")
 
