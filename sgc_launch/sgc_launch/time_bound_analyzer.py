@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import pandas as pd 
 import seaborn as sns
 import numpy as np 
+from rcl_interfaces.msg import SetParametersResult
 
 class SGC_Analyzer(rclpy.node.Node):
     def __init__(self):
@@ -68,6 +69,7 @@ class SGC_Analyzer(rclpy.node.Node):
             'fogros_sgc/profile',
             self.profile_topic_callback,
             10)
+        self.add_on_set_parameters_callback(self.parameters_callback)
         
         self.profile = Profile()
         self.profile.identity.data = self.identity
@@ -153,6 +155,16 @@ class SGC_Analyzer(rclpy.node.Node):
         except:
             pass
         
+    def parameters_callback(self, params):
+        # do some actions, validate parameters, update class attributes, etc.
+        for param in params:
+            if param._name == "latency_bound":
+                self.latency_bound = param._value
+                self.logger.warn(f"successfully changing {vars(param)} to {self.latency_bound}")
+                plt.clf()
+            else:
+                self.logger.warn(f"changing {vars(param)} is not supported yet")
+        return SetParametersResult(successful=True)
 
 def main():
     rclpy.init()
