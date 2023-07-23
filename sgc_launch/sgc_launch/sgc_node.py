@@ -285,34 +285,10 @@ class SGC_Router_Node(rclpy.node.Node):
                 self.discovered_topics.append(topic_name)
             # TODO: remove a topic when the topic is gone 
 
-
-spin_queue = []
-PERIOD = 0.01
-
-
-def main(args=None):
-    rclpy.init(args=args)
-
-    router_node = SGC_Router_Node()
-    # you'll probably want to append your own node here
-    spin_queue.append(router_node)
-    spin_queue.append(SGC_Analyzer(router_node.whoami,
-                                    "/offload_detection/scheduler_yolo/input/cloud",
-                                    "sensor_msgs/msg/CompressedImage",
-                                    "/offload_detection/scheduler_yolo/output/cloud",
-                                    "sensor_msgs/msg/CompressedImage",
-                                    0.4
-                                    ))
-
-
-    while rclpy.ok():
-        try:
-            for node in spin_queue:
-                rclpy.spin_once(node, timeout_sec=(PERIOD / len(spin_queue)))
-        except Exception as e:
-            print(f"something went wrong in the ROS Loop: {e}")
-
-    rclpy.shutdown()
+def main():
+    rclpy.init()
+    node = SGC_Router_Node()
+    rclpy.spin(node)
 
 if __name__ == '__main__':
     main()

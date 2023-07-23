@@ -15,21 +15,24 @@ import seaborn as sns
 import numpy as np 
 
 class SGC_Analyzer(rclpy.node.Node):
-    def __init__(
-            self,
-            identity,
-            request_topic, 
-            request_topic_type,
-            response_topic, 
-            response_topic_type,
-            latency_bound = 1
-            ):
+    def __init__(self):
         super().__init__('sgc_time_bound_analyzer')
         # self.source_topic = request_topic
         # self.response = response_topic
-        self.latency_bound = latency_bound
+        self.declare_parameter("whoami", "")
+        self.identity = self.get_parameter("whoami").value
+        self.declare_parameter("latency_bound", 0.0)
+        self.latency_bound = self.get_parameter("latency_bound").value
+        self.declare_parameter("request_topic_name", "")
+        request_topic = self.get_parameter("request_topic_name").value
+        self.declare_parameter("request_topic_type", "")
+        request_topic_type = self.get_parameter("request_topic_type").value
+        self.declare_parameter("response_topic_name", "")
+        response_topic = self.get_parameter("response_topic_name").value
+        self.declare_parameter("response_topic_type", "")
+        response_topic_type = self.get_parameter("response_topic_type").value
+
         self.logger = self.get_logger()
-        self.identity = identity
 
         self.machine_dict = dict()
         self.current_timestamp = int(time.time()) + 1
@@ -65,7 +68,7 @@ class SGC_Analyzer(rclpy.node.Node):
             10)
         
         self.profile = Profile()
-        self.profile.identity.data = identity
+        self.profile.identity.data = self.identity
         self.profile.ip_addr.data = socket.gethostname()
         self.profile.num_cpu_core = psutil.cpu_count()
         freq = [freq.current for freq in psutil.cpu_freq(True)]
@@ -147,3 +150,10 @@ class SGC_Analyzer(rclpy.node.Node):
             pass
         
 
+def main():
+    rclpy.init()
+    node = SGC_Analyzer()
+    rclpy.spin(node)
+
+if __name__ == '__main__':
+    main()

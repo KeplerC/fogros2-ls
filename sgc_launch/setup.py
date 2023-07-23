@@ -39,7 +39,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'sgc_router = sgc_launch.sgc_node:main'
+            'sgc_router = sgc_launch.sgc_node:main',
+            'time_bound_analyzer = sgc_launch.time_bound_analyzer:main'
         ],
     },
 )

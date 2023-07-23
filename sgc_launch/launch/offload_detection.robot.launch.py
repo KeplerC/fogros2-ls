@@ -22,6 +22,22 @@ def generate_launch_description():
     )
     launch_description.add_action(sgc_router)
 
+    time_bound_analyzer = Node(
+        package="sgc_launch",
+        executable="time_bound_analyzer", 
+        output="screen",
+        emulate_tty = True,
+        parameters = [
+            {"whoami": "robot"},
+            {"request_topic_name": "/offload_detection/scheduler_yolo/input/cloud"}, 
+            {"request_topic_type": "sensor_msgs/msg/CompressedImage"}, 
+            {"response_topic_name": "/offload_detection/scheduler_yolo/output/cloud"}, 
+            {"response_topic_type": "sensor_msgs/msg/CompressedImage"}, 
+            {"latency_bound" : 0.4}, 
+        ]
+    )
+    launch_description.add_action(time_bound_analyzer)
+
     camera = Node(
         package = "offload_detection",
         name = "simulate_camera_node",
