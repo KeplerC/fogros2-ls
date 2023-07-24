@@ -78,29 +78,33 @@ class SGC_Swarm:
     apply assignment dictionary
     '''
     def apply_assignment(self, new_assignment_dict):
-        # currently: just focus on its own machine 
-        # TODO: propagate the applied assignment to other machines 
         if self.instance_identifer not in new_assignment_dict:
             self.logger.warn(f"[Warn] the assignment dict {new_assignment_dict} doesn't have the identifier {self.instance_identifer} for this machine")
-            return 
         
-        previous_state = self.assignment_dict[self.instance_identifer] if self.instance_identifer in self.assignment_dict else None 
-        current_state = new_assignment_dict[self.instance_identifer]
-        if self.instance_identifer in self.assignment_dict and \
-            previous_state != current_state:
-            self.logger.warn("the assignment has changed! need to revoke the current assignment ")
-            for topic_to_action_pair in self.state_dict[previous_state].topics:
-                topic_name = list(topic_to_action_pair.keys())[0] # because it only has one element for sure
-                topic_type = self.topic_dict[topic_name]
-                topic_action = topic_to_action_pair[topic_name]
-                send_request("del", topic_action, topic_name, topic_type, self.sgc_address)
-                    
-        # add in new topics 
-        for topic_to_action_pair in self.state_dict[current_state].topics:
-            topic_name = list(topic_to_action_pair.keys())[0] # because it only has one element for sure
-            topic_type = self.topic_dict[topic_name]
-            topic_action = topic_to_action_pair[topic_name]
-            send_request("add", topic_action, topic_name, topic_type, self.sgc_address)
+        for machine in new_assignment_dict:
+            if machine == self.instance_identifer:
+                # conduct actual parameter change if the identifier is in the assignment dict
+                previous_state = self.assignment_dict[self.instance_identifer] if self.instance_identifer in self.assignment_dict else None 
+                current_state = new_assignment_dict[self.instance_identifer]
+                if self.instance_identifer in self.assignment_dict and \
+                    previous_state != current_state:
+                    self.logger.warn("the assignment has changed! need to revoke the current assignment ")
+                    for topic_to_action_pair in self.state_dict[previous_state].topics:
+                        topic_name = list(topic_to_action_pair.keys())[0] # because it only has one element for sure
+                        topic_type = self.topic_dict[topic_name]
+                        topic_action = topic_to_action_pair[topic_name]
+                        send_request("del", topic_action, topic_name, topic_type, self.sgc_address)
+                            
+                # add in new topics 
+                for topic_to_action_pair in self.state_dict[current_state].topics:
+                    topic_name = list(topic_to_action_pair.keys())[0] # because it only has one element for sure
+                    topic_type = self.topic_dict[topic_name]
+                    topic_action = topic_to_action_pair[topic_name]
+                    send_request("add", topic_action, topic_name, topic_type, self.sgc_address)
+                self.assignment_dict[machine] = new_assignment_dict[machine]
+            else:
+                # only udpate the assignment dict, do not do any parameter change
+                self.assignment_dict[machine] = new_assignment_dict[machine]
 
         # TODO: apply parameter changes 
 
@@ -231,7 +235,7 @@ class SGC_Router_Node(rclpy.node.Node):
         machine = update.machine.data
         state = update.state.data
         if self.swarm.assignment_dict[machine] == state:
-            self.logger.warn(f"the udpate {update} is the same, not updating")
+            self.logger.warn(f"the update {update} is the same, not updating")
         else:
             assignment_dict = {machine: state}
             self.swarm.apply_assignment(assignment_dict)

@@ -49,8 +49,8 @@ class SGC_Analyzer(rclpy.node.Node):
         self.latency_df = pd.DataFrame(
             [{
                 "timestamp": self.current_timestamp,
-                "robot": np.nan,
-                "machine_local": np.nan,
+                "latency": np.nan,
+                "machine": "",
             }]
         )
         # used for maintaining the current dataframe index
@@ -89,7 +89,9 @@ class SGC_Analyzer(rclpy.node.Node):
 
         self.machine_dict[self.identity] = self.profile
 
-        self.create_timer(3, self.timer_callback)
+
+        self.create_timer(1, self.update_timer_callback)
+        self.create_timer(3, self.stats_timer_callback)
 
         # Current heuristic: 
         # response_timestamp - the latest previous request timestamp 
@@ -119,16 +121,18 @@ class SGC_Analyzer(rclpy.node.Node):
                     [self.latency_df, pd.DataFrame([
                         {
                         "timestamp": self.current_timestamp,
-                        "robot": np.nan,
-                        "machine_local": profile_update.latency,
+                        "latency": profile_update.latency,
+                        "machine": profile_update.identity.data,
                         }
                     ])]
                 )
-            
-    # run every second to calculate the profile message and publish
-    def timer_callback(self):
-        latency = 0
+    
+    def update_timer_callback(self):
         self.current_timestamp = int(time.time()) + 1 # round up
+
+    # run every second to calculate the profile message and publish
+    def stats_timer_callback(self):
+        latency = 0
         # self.latency_df = pd.concat(
         #     [self.latency_df, pd.DataFrame([current_timestamp, None, None])], ignore_index=True
         # )
@@ -140,8 +144,8 @@ class SGC_Analyzer(rclpy.node.Node):
                 [self.latency_df, pd.DataFrame([
                     {
                     "timestamp": self.current_timestamp,
-                    "robot": latency,
-                    "machine_local": np.nan,
+                    "latency": latency,
+                    "machine": self.identity,
                     }
                 ])]
             )
@@ -155,13 +159,15 @@ class SGC_Analyzer(rclpy.node.Node):
     def plot_latency_history(self):
         #https://stackoverflow.com/questions/56170909/seaborn-lineplot-high-cpu-very-slow-compared-to-matplotlib
         try:
-            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "robot", errorbar=None, color = "blue")
-            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local", errorbar=None, color = "green")
-            plt.axhline(y = self.compute_latency_bound, color = 'r', linestyle = '-')
-            plt.axhline(y = self.compute_latency_bound + self.network_latency_bound, color = 'r', linestyle = '-')
-            plt.legend(labels=['End-to-end', 'Compute', 'compute bound', 'total bound'])
+            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "latency", errorbar=None, hue = "machine")
+            # sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local", errorbar=None, color = "green")
+            plt.axhline(y = self.compute_latency_bound, color = 'b', linestyle = '-')
+            plt.axhline(y = self.compute_latency_bound + self.network_latency_bound, color = 'r', linestyle = '-.')
+            # plt.legend(labels=['End-to-end', 'Compute', 'compute bound', 'total bound'])
             plt.savefig("./plot.png")
+            plt.clf()
         except Exception as e:
+            self.logger.info(self.latency_df.to_string())
             self.logger.error(f"plotting error {e}")
         
     def parameters_callback(self, params):
