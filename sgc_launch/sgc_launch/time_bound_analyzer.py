@@ -90,6 +90,17 @@ class SGC_Analyzer(rclpy.node.Node):
         self.logger.info(f"{freq}")
         self.profile.cpu_frequency = float(average_freq)
 
+        try:
+            import pynvml
+            pynvml.nvmlInit()
+            self.has_gpu = pynvml.nvmlDeviceGetCount() > self.gpu_id
+            if not self.has_gpu:
+                print(f"No GPU with ID {self.gpu_id} found.")
+        except pynvml.NVMLError_LibraryNotFound:
+            print("NVIDIA driver not installed.")
+            self.has_gpu = False
+        self.profile.has_gpu = self.has_gpu
+
         self.machine_dict[self.identity] = self.profile
 
 
@@ -161,7 +172,7 @@ class SGC_Analyzer(rclpy.node.Node):
             if self.enforce_time_bound_analysis:
                 need_better_compute, need_better_network = self._check_latency_bound()
                 if need_better_compute:
-                    machine = self._get_machine_with_best_compute()
+                    machine = self._get_machine_with_better_compute()
                     self.logger.info(f"need better compute; switching to machine {machine}")
                     self._switch_to_machine(machine)
                 elif need_better_network:
@@ -235,14 +246,18 @@ class SGC_Analyzer(rclpy.node.Node):
         self.logger.info(f"need better compute {need_better_compute}, need better network {need_better_network}")
         return need_better_compute, need_better_network
     
-    def _get_machine_with_best_compute(self):
+    def _get_machine_with_better_compute(self):
         # get the best machine based on current spec collected 
         # param = optimize_compute vs optimize 
         # if machine has gpu 
         # else cpu_core >= cpu_core:
         # else cpu_frequency 
         for machine in self.machine_dict:
-            if self.machine_dict[machine].gpu_usage:
+            if self.machine_dict[machine].has_gpu and not self.has_gpu:
+                return machine
+            if self.machine_dict[machine].num_cpu_core >= self.profile.num_cpu_core:
+                return machine
+            if self.machine_dict[machine].cpu_frequency >= self.profile.cpu_frequency:
                 return machine
 
     def _get_machine_with_best_network(self):

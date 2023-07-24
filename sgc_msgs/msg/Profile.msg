@@ -5,6 +5,6 @@ std_msgs/String ip_addr
 int16 num_cpu_core
 float64 cpu_frequency 
 float64 cpu_usage 0         
-float64 gpu_usage 0 
+bool has_gpu False 
 # runtime stats 
 float64 latency 0
