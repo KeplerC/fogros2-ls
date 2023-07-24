@@ -23,7 +23,7 @@ class SGC_Analyzer(rclpy.node.Node):
         self.identity = self.get_parameter("whoami").value
 
         # in second 
-        self.declare_parameter("latency_bound", 0.0)
+        self.declare_parameter("network_latency_bound", 0.0)
         self.network_latency_bound = self.get_parameter("network_latency_bound").value
         self.declare_parameter("compute_latency_bound", 0.5)
         self.compute_latency_bound = self.get_parameter("compute_latency_bound").value
@@ -153,15 +153,16 @@ class SGC_Analyzer(rclpy.node.Node):
             self.plot_latency_history()
 
     def plot_latency_history(self):
+        #https://stackoverflow.com/questions/56170909/seaborn-lineplot-high-cpu-very-slow-compared-to-matplotlib
         try:
-            #https://stackoverflow.com/questions/56170909/seaborn-lineplot-high-cpu-very-slow-compared-to-matplotlib
-            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "robot", errorbar=None, palette="Accent")
-            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local", errorbar=None, palette="Accent")
-            plt.axhline(y = self.latency_bound, color = 'r', linestyle = '-')
-            plt.legend(labels=['End-to-end', 'Compute', 'time bound'])
+            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "robot", errorbar=None, color = "blue")
+            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local", errorbar=None, color = "green")
+            plt.axhline(y = self.compute_latency_bound, color = 'r', linestyle = '-')
+            plt.axhline(y = self.compute_latency_bound + self.network_latency_bound, color = 'r', linestyle = '-')
+            plt.legend(labels=['End-to-end', 'Compute', 'compute bound', 'total bound'])
             plt.savefig("./plot.png")
-        except:
-            pass
+        except Exception as e:
+            self.logger.error(f"plotting error {e}")
         
     def parameters_callback(self, params):
         # do some actions, validate parameters, update class attributes, etc.
