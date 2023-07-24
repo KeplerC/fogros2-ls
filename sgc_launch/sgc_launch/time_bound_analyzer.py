@@ -193,12 +193,12 @@ class SGC_Analyzer(rclpy.node.Node):
     def parameters_callback(self, params):
         for param in params:
             if param._name == "compute_latency_bound":
-                self.latency_bound = param._value
-                self.logger.warn(f"successfully changing {vars(param)} to {self.latency_bound}")
+                self.compute_latency_bound = param._value
+                self.logger.warn(f"successfully changing {vars(param)} to {self.compute_latency_bound}")
                 plt.clf()
             if param._name == "network_latency_bound":
-                self.latency_bound = param._value
-                self.logger.warn(f"successfully changing {vars(param)} to {self.latency_bound}")
+                self.network_latency_bound = param._value
+                self.logger.warn(f"successfully changing {vars(param)} to {self.network_latency_bound}")
                 plt.clf()
             else:
                 self.logger.warn(f"changing {vars(param)} is not supported yet")
@@ -230,8 +230,8 @@ class SGC_Analyzer(rclpy.node.Node):
         network_latency =  end_to_end_latency - compute_latency
         self.logger.info(f"network latency {network_latency}")
 
-        need_better_compute = compute_latency < self.compute_latency_bound
-        need_better_network = network_latency < self.network_latency_bound
+        need_better_compute = compute_latency > self.compute_latency_bound
+        need_better_network = network_latency > self.network_latency_bound
         self.logger.info(f"need better compute {need_better_compute}, need better network {need_better_network}")
         return need_better_compute, need_better_network
     
@@ -249,8 +249,10 @@ class SGC_Analyzer(rclpy.node.Node):
         # use ping to get the latency
         latency_dict = dict()
         for machine in self.machine_dict:
-            latency_dict[machine] = ping_host(self.machine_dict[machine].ip_addr.data)["avg_latency"]
-            self.logger.info(f"latency to {machine} is {latency_dict[machine]}")
+            network_info = ping_host(self.machine_dict[machine].ip_addr.data)
+            self.logger.info(f"latency to {machine} is {network_info}")
+            latency_dict[machine] = network_info["avg_latency"]
+            # self.logger.info(f"latency to {machine} is {latency_dict[machine]}")
         return min(latency_dict, key=latency_dict.get)
 
     def _switch_to_machine(self, machine):
