@@ -11,23 +11,29 @@ topics:
     topic_type: sensor_msgs/msg/CompressedImage
   - topic_name: /fogros_sgc/profile
     topic_type: sgc_msgs/msg/Profile
+  - topic_name: /fogros_sgc/assignment_update
+    topic_type: sgc_msgs/msg/AssignmentUpdate
+
 
 state_machine: 
   standby: 
     topics:
       - /fogros_sgc/profile: pub
-  robot: 
-    topics:
-      - /offload_detection/profile/cloud: sub
-      - /offload_detection/scheduler_yolo/input/cloud: pub 
-      - /offload_detection/scheduler_yolo/output/cloud: sub 
-      - /fogros_sgc/profile: sub
+      - /fogros_sgc/assignment_update: sub
   service: 
     topics:
       - /offload_detection/profile/cloud: pub
       - /offload_detection/scheduler_yolo/input/cloud: sub 
       - /offload_detection/scheduler_yolo/output/cloud: pub 
       - /fogros_sgc/profile: pub
+      - /fogros_sgc/assignment_update: sub
+  robot: 
+    topics:
+      - /offload_detection/profile/cloud: sub
+      - /offload_detection/scheduler_yolo/input/cloud: pub 
+      - /offload_detection/scheduler_yolo/output/cloud: sub 
+      - /fogros_sgc/profile: sub
+      - /fogros_sgc/assignment_update: pub
 
 assignment:
   robot: robot

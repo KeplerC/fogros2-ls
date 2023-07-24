@@ -24,7 +24,9 @@ class SGC_Analyzer(rclpy.node.Node):
 
         # in second 
         self.declare_parameter("latency_bound", 0.0)
-        self.latency_bound = self.get_parameter("latency_bound").value
+        self.network_latency_bound = self.get_parameter("network_latency_bound").value
+        self.declare_parameter("compute_latency_bound", 0.5)
+        self.compute_latency_bound = self.get_parameter("compute_latency_bound").value
 
         # topic to subscribe to know the start and end of the benchmark
         self.declare_parameter("request_topic_name", "")

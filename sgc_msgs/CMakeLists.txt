@@ -25,6 +25,7 @@ set(srv_files
 
 set(msg_files
   "msg/Profile.msg"
+  "msg/AssignmentUpdate.msg"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}

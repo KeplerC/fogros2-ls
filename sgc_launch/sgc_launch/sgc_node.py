@@ -8,6 +8,7 @@ import rclpy
 import rclpy.node
 from rcl_interfaces.msg import SetParametersResult
 from sgc_msgs.srv import SgcAssignment
+from sgc_msgs.msg import AssignmentUpdate
 from .time_bound_analyzer import SGC_Analyzer
 
 def send_request(
@@ -196,6 +197,18 @@ class SGC_Router_Node(rclpy.node.Node):
 
         self.assignment_server = self.create_service(SgcAssignment, 'sgc_assignment_service', self.sgc_assignment_callback)
 
+        self.assignment_update_publisher = self.create_publisher(AssignmentUpdate, 'fogros_sgc/assignment_update', 10)
+
+        # subscribe to the profile topic from other machines (if any)
+        # for now we assume only one machine (i.e. robot) can issue the command, and use sgc 
+        # to propagate to other machines 
+        # later we can make it dynamic 
+        self.assignment_update_subscriber = self.create_subscription(
+            AssignmentUpdate,
+            'fogros_sgc/assignment_update',
+            self.assignment_update_callback,
+            10)
+        
     def parameters_callback(self, params):
         self.logger.info(f"got {params}!!!")
         return SetParametersResult(successful=False)
@@ -206,8 +219,26 @@ class SGC_Router_Node(rclpy.node.Node):
         state = request.state.data
         assignment_dict = {machine: state}
         self.swarm.apply_assignment(assignment_dict)
+        update = AssignmentUpdate()
+        update.machine = request.machine
+        update.state = request.state
+        # republish 
+        self.assignment_update_publisher.publish(update)
         response.result.data = "success"
         return response
+    
+    def assignment_update_callback(self, update):
+        machine = update.machine.data
+        state = update.state.data
+        if self.swarm.assignment_dict[machine] == state:
+            self.logger.warn(f"the udpate {update} is the same, not updating")
+        else:
+            assignment_dict = {machine: state}
+            self.swarm.apply_assignment(assignment_dict)
+            self.logger.warn(f"the updated machine assignment is {self.swarm.assignment_dict}")
+            # republishing (is this needed)
+            # self.assignment_update_publisher.publish(update)
+
 
     def launch_sgc(self, config_path, config_file_name, logger, whoami, release_mode, automatic_mode):
         current_env = os.environ.copy()
