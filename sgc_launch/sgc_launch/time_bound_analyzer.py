@@ -111,12 +111,13 @@ class SGC_Analyzer(rclpy.node.Node):
         self.logger.info(f"response: {time.time()}, {(time.time() - self.last_request_time)}")
 
     def profile_topic_callback(self, profile_update):
+        self.logger.info(f"received profile update from {profile_update}")
         if profile_update.identity.data == self.identity:
             # same update from its own publisher, we are only interested in other machine's
             # updates 
             return 
         self.machine_dict[profile_update.identity.data] = profile_update
-        if profile_update.latency:
+        if profile_update.latency and not (((self.latency_df['timestamp'] == self.current_timestamp) & (self.latency_df['machine'] == profile_update.identity.data)).any()):
             self.latency_df = pd.concat(
                     [self.latency_df, pd.DataFrame([
                         {
@@ -161,8 +162,8 @@ class SGC_Analyzer(rclpy.node.Node):
         try:
             sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "latency", errorbar=None, hue = "machine")
             # sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local", errorbar=None, color = "green")
-            plt.axhline(y = self.compute_latency_bound, color = 'b', linestyle = '-')
-            plt.axhline(y = self.compute_latency_bound + self.network_latency_bound, color = 'r', linestyle = '-.')
+            plt.axhline(y = self.compute_latency_bound, color = 'b', linestyle = '-.')
+            plt.axhline(y = self.compute_latency_bound + self.network_latency_bound, color = 'r', linestyle = '-')
             # plt.legend(labels=['End-to-end', 'Compute', 'compute bound', 'total bound'])
             plt.savefig("./plot.png")
             plt.clf()
