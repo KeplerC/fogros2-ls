@@ -37,7 +37,8 @@ pub fn add_entity_to_database_as_transaction(
     let (new_val,): (isize,) = redis::transaction(&mut con, &[key], |con, pipe| {
         pipe.lpush(key, value).query(con)
     })?;
-    println!("The incremented number is: {}", new_val);
+    info!("The current number of entities in database is: {}", new_val);
+    println!("successfully added entity {} {} to database", key, value);
     Ok(())
 }
 
