@@ -28,8 +28,8 @@ def get_ROS_class(ros_message_type, srv=False):
 
 from pythonping import ping
 
-def ping_host(host):
-    ping_result = ping(target=host, count=10, timeout=2)
+def ping_host(host, payload = 500):
+    ping_result = ping(target=host, count=10, timeout=2, payload=payload)
 
     return {
         'host': host,
@@ -38,3 +38,8 @@ def ping_host(host):
         'max_latency': ping_result.rtt_max_ms,
         'packet_loss': ping_result.packet_loss
     }
+
+import urllib.request
+
+def get_public_ip_address():
+    return urllib.request.urlopen('https://ident.me').read().decode('utf8')

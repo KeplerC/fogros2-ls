@@ -7,7 +7,7 @@ import time
 import rclpy
 import rclpy.node
 from sgc_msgs.msg import Profile
-from .utils import get_ROS_class
+from .utils import *
 import psutil
 import matplotlib.pyplot as plt
 import pandas as pd 
@@ -18,12 +18,15 @@ from rcl_interfaces.msg import SetParametersResult
 class SGC_Analyzer(rclpy.node.Node):
     def __init__(self):
         super().__init__('sgc_time_bound_analyzer')
-        # self.source_topic = request_topic
-        # self.response = response_topic
+
         self.declare_parameter("whoami", "")
         self.identity = self.get_parameter("whoami").value
+
+        # in second 
         self.declare_parameter("latency_bound", 0.0)
         self.latency_bound = self.get_parameter("latency_bound").value
+
+        # topic to subscribe to know the start and end of the benchmark
         self.declare_parameter("request_topic_name", "")
         request_topic = self.get_parameter("request_topic_name").value
         self.declare_parameter("request_topic_type", "")
@@ -32,6 +35,8 @@ class SGC_Analyzer(rclpy.node.Node):
         response_topic = self.get_parameter("response_topic_name").value
         self.declare_parameter("response_topic_type", "")
         response_topic_type = self.get_parameter("response_topic_type").value
+
+        # whether or not to generate a plot
         self.declare_parameter("plot", False)
         self.plot = self.get_parameter("plot").value
 
@@ -73,7 +78,7 @@ class SGC_Analyzer(rclpy.node.Node):
         
         self.profile = Profile()
         self.profile.identity.data = self.identity
-        self.profile.ip_addr.data = socket.gethostname()
+        self.profile.ip_addr.data = get_public_ip_address()
         self.profile.num_cpu_core = psutil.cpu_count()
         freq = [freq.current for freq in psutil.cpu_freq(True)]
         average_freq = sum(freq) / len(freq)
@@ -148,9 +153,10 @@ class SGC_Analyzer(rclpy.node.Node):
     def plot_latency_history(self):
         try:
             #https://stackoverflow.com/questions/56170909/seaborn-lineplot-high-cpu-very-slow-compared-to-matplotlib
-            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "robot", errorbar=None)
-            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local", errorbar=None)
+            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "robot", errorbar=None, palette="Accent")
+            sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local", errorbar=None, palette="Accent")
             plt.axhline(y = self.latency_bound, color = 'r', linestyle = '-')
+            plt.legend(labels=['End-to-end', 'Compute', 'time bound'])
             plt.savefig("./plot.png")
         except:
             pass
@@ -165,6 +171,16 @@ class SGC_Analyzer(rclpy.node.Node):
             else:
                 self.logger.warn(f"changing {vars(param)} is not supported yet")
         return SetParametersResult(successful=True)
+    
+    def get_the_best_machine(self):
+        # get the best machine based on current spec collected 
+        # param = optimize_compute vs optimize 
+        # if machine has gpu 
+        # else cpu_core >= cpu_core:
+        # else cpu_frequency 
+
+        # check networking 
+        pass 
 
 def main():
     rclpy.init()
