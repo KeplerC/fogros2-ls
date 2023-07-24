@@ -685,7 +685,38 @@ pub async fn ros_topic_manager(mut topic_request_rx: UnboundedReceiver<ROSTopicR
                                 warn!("unknown action {}", payload.ros_op);
                             }
                         }
+                    },               
+                    "resume" => {
+                        info!("resuming topic {:?}", payload);
+                        
+                        match payload.ros_op.as_str() {
+                            "pub" => {
+                                let topic_operation_tx = publisher_operation_tx.clone();
+                                let topic_creator_request = TopicModificationRequest {
+                                    action: FibChangeAction::RESUME,
+                                    stream: None,
+                                    topic_name: payload.topic_name,
+                                    topic_type: payload.topic_type,
+                                    certificate: certificate.clone(),
+                                };
+                                let _ = topic_operation_tx.send(topic_creator_request);
 
+                            }, 
+                            "sub" => {
+                                let topic_operation_tx = subscriber_operation_tx.clone();
+                                let topic_creator_request = TopicModificationRequest {
+                                    action: FibChangeAction::RESUME,
+                                    stream: None,
+                                    topic_name: payload.topic_name,
+                                    topic_type: payload.topic_type,
+                                    certificate: certificate.clone(),
+                                };
+                                let _ = topic_operation_tx.send(topic_creator_request);
+                            }
+                            _ => {
+                                warn!("unknown action {}", payload.ros_op);
+                            }
+                        }
                     }
 
                     _ => {

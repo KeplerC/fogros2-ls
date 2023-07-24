@@ -9,7 +9,6 @@ import rclpy.node
 from rcl_interfaces.msg import SetParametersResult
 from sgc_msgs.srv import SgcAssignment
 from sgc_msgs.msg import AssignmentUpdate
-from .time_bound_analyzer import SGC_Analyzer
 
 def send_request(
     api_op, 
@@ -61,6 +60,8 @@ class SGC_Swarm:
         # assignment: map identifer to state_names 
         self.assignment_dict = dict()
 
+        self._paused_topics = []
+
         self.logger = logger
         
         self.load(yaml_config)
@@ -94,13 +95,21 @@ class SGC_Swarm:
                         topic_type = self.topic_dict[topic_name]
                         topic_action = topic_to_action_pair[topic_name]
                         send_request("del", topic_action, topic_name, topic_type, self.sgc_address)
+                        self._paused_topics.append(topic_name)
                             
                 # add in new topics 
                 for topic_to_action_pair in self.state_dict[current_state].topics:
                     topic_name = list(topic_to_action_pair.keys())[0] # because it only has one element for sure
                     topic_type = self.topic_dict[topic_name]
                     topic_action = topic_to_action_pair[topic_name]
-                    send_request("add", topic_action, topic_name, topic_type, self.sgc_address)
+                    if topic_name in self._paused_topics:
+                        # if the topic is paused, we need to resume it 
+                        self.logger.warn(f"resuming topic {topic_name} this prevents setting up a new connection")
+                        send_request("resume", topic_action, topic_name, topic_type, self.sgc_address)
+                        self._paused_topics.remove(topic_name)
+                    else:
+                        self.logger.warn(f"adding topic {topic_name} to SGC router")
+                        send_request("add", topic_action, topic_name, topic_type, self.sgc_address)
                 self.assignment_dict[machine] = new_assignment_dict[machine]
             else:
                 # only udpate the assignment dict, do not do any parameter change

@@ -102,10 +102,26 @@ pub async fn connection_fib_handler(
                         //todo pause
                     },
                     FibChangeAction::PAUSE => {
-                        //todo pause
+                        info!("Pausing GDP Name {:?}", update.topic_gdp_name);
+                        match  rib_state_table.get_mut(&update.topic_gdp_name) {
+                            Some(v) => {
+                                v.state = TopicStateInFIB::PAUSED;
+                            }
+                            None =>{
+                                error!("pausing non existing state!");
+                            }
+                        };
                     },
                     FibChangeAction::RESUME => {
-                        //todo pause
+                        info!("Deleting GDP Name {:?}", update.topic_gdp_name);
+                        match  rib_state_table.get_mut(&update.topic_gdp_name) {
+                            Some(v) => {
+                                v.state = TopicStateInFIB::RUNNING;
+                            }
+                            None =>{
+                                error!("resuming non existing state!");
+                            }
+                        };
                     },
                     FibChangeAction::DELETE => {
                         info!("Deleting GDP Name {:?}", update.topic_gdp_name);
