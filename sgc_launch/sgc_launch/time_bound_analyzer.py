@@ -93,7 +93,7 @@ class SGC_Analyzer(rclpy.node.Node):
         try:
             import pynvml
             pynvml.nvmlInit()
-            self.has_gpu = pynvml.nvmlDeviceGetCount() > self.gpu_id
+            self.has_gpu = pynvml.nvmlDeviceGetCount() > 0
             if not self.has_gpu:
                 print(f"No GPU with ID {self.gpu_id} found.")
         except pynvml.NVMLError_LibraryNotFound:

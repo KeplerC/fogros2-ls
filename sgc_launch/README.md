@@ -1,5 +1,10 @@
 # ROS Launchable FogROS2-SGC
 
+### Dependencies 
+```
+pip install icmplib
+```
+
 ### Configuartion file 
 
 FogROS2-SGC requires a separate configuration file to expose the topics. While it supports automatic topic scanning, we want the users to expose the topics globally only if they want to, to enhance the isolation and protect the privacy of the robots and services. An example of the configuration file can be found as following: 
