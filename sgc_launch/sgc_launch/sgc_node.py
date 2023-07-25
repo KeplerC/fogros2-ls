@@ -237,6 +237,7 @@ class SGC_Router_Node(rclpy.node.Node):
         update.state = request.state
         # republish 
         self.assignment_update_publisher.publish(update)
+        self.logger.warn(f"successfully published the update {update}")
         response.result.data = "success"
         return response
     

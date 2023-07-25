@@ -7,6 +7,7 @@ import time
 import rclpy
 import rclpy.node
 from sgc_msgs.msg import Profile
+from sgc_msgs.srv import SgcAssignment
 from .utils import *
 import psutil
 import matplotlib.pyplot as plt
@@ -22,13 +23,13 @@ class SGC_Analyzer(rclpy.node.Node):
         self.declare_parameter("whoami", "")
         self.identity = self.get_parameter("whoami").value
 
-        # in second 
+        # latency bound in second 
         self.declare_parameter("network_latency_bound", 0.0)
         self.network_latency_bound = self.get_parameter("network_latency_bound").value
         self.declare_parameter("compute_latency_bound", 0.0)
         self.compute_latency_bound = self.get_parameter("compute_latency_bound").value
 
-        # time bound analysis is only conducted if 
+        # time bound analysis is only conducted if either network or compute latency bound is set
         self.enforce_time_bound_analysis = self.network_latency_bound > 0 or self.compute_latency_bound > 0
 
         # topic to subscribe to know the start and end of the benchmark
@@ -58,7 +59,6 @@ class SGC_Analyzer(rclpy.node.Node):
         )
         # used for maintaining the current dataframe index
         
-
         self.request_topic = self.create_subscription(
             get_ROS_class(request_topic_type),
             request_topic,
@@ -101,6 +101,9 @@ class SGC_Analyzer(rclpy.node.Node):
             self.has_gpu = False
         self.profile.has_gpu = self.has_gpu
 
+        # assignment service client to sgc_node
+        self.assignment_service_client = self.create_client(SgcAssignment, 'sgc_assignment_service')
+
         self.machine_dict[self.identity] = self.profile
 
 
@@ -118,12 +121,12 @@ class SGC_Analyzer(rclpy.node.Node):
 
     def request_topic_callback(self, msg):
         self.last_request_time = time.time()
-        self.logger.info(f"request: {self.last_request_time}")
+        # self.logger.info(f"request: {self.last_request_time}")
 
     # calculate latency based on heuristics
     def response_topic_callback(self, msg):
         self.latency_sliding_window.append((time.time() - self.last_request_time))
-        self.logger.info(f"response: {time.time()}, {(time.time() - self.last_request_time)}")
+        # self.logger.info(f"response: {time.time()}, {(time.time() - self.last_request_time)}")
 
     def profile_topic_callback(self, profile_update):
         self.logger.info(f"received profile update from {profile_update}")
@@ -252,14 +255,15 @@ class SGC_Analyzer(rclpy.node.Node):
         # if machine has gpu 
         # else cpu_core >= cpu_core:
         # else cpu_frequency 
-        for machine in self.machine_dict:
-            if self.machine_dict[machine].has_gpu and not self.has_gpu:
-                return machine
-            if self.machine_dict[machine].num_cpu_core >= self.profile.num_cpu_core:
-                return machine
-            if self.machine_dict[machine].cpu_frequency >= self.profile.cpu_frequency:
-                return machine
-
+        # for machine in self.machine_dict:
+        #     if self.machine_dict[machine].has_gpu and not self.has_gpu:
+        #         return machine
+        #     if self.machine_dict[machine].num_cpu_core >= self.profile.num_cpu_core:
+        #         return machine
+        #     if self.machine_dict[machine].cpu_frequency >= self.profile.cpu_frequency:
+        #         return machine
+        return "machine_cloud" #TODO: currently it's hardcoded placeholder
+    
     def _get_machine_with_best_network(self):
         # use ping to get the latency
         latency_dict = dict()
@@ -274,7 +278,18 @@ class SGC_Analyzer(rclpy.node.Node):
         if machine == self.identity:
             # no need to switch
             return
-        self.logger.info(f"switching to machine {machine}")
+        
+        request = SgcAssignment.Request()
+        request.machine.data = "machine_local"
+        request.state.data = "standby" # TODO: currently it's hardcoded
+        _ = self.assignment_service_client.call_async(request)
+
+
+        
+        request.machine.data = "machine_cloud"
+        request.state.data = "service" # TODO: currently it's hardcoded
+        _ = self.assignment_service_client.call_async(request)
+
 def main():
     rclpy.init()
     node = SGC_Analyzer()
