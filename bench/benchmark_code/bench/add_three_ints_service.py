@@ -44,6 +44,8 @@ class AddThreeIntsServiceNode(Node):
         self.host_name = socket.gethostname()
         self.host_ip = socket.gethostbyname(self.host_name)
 
+        self.get_logger().info(f'I am {self.host_name} at {self.host_ip}. Starting service /add_three_ints.')
+
         self.service = self.create_service(AddThreeInts, "add_three_ints", self.add_three_ints_callback)
 
 
@@ -56,6 +58,7 @@ class AddThreeIntsServiceNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
+
 
     add_three_ints_service_node = AddThreeIntsServiceNode()
 
