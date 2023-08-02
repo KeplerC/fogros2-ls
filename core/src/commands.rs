@@ -2,6 +2,7 @@ extern crate tokio;
 extern crate tokio_core;
 
 use crate::api_server::ros_api_server;
+use crate::service_manager::ros_service_manager;
 use crate::topic_manager::ros_topic_manager;
 use futures::future;
 
@@ -17,13 +18,19 @@ async fn router_async_loop() {
     info!("{:#?}", config);
 
     let (topic_request_tx, topic_request_rx) = mpsc::unbounded_channel();
+
+    let (service_request_tx, service_request_rx) = mpsc::unbounded_channel();
+
     let mut future_handles = Vec::new();
 
     let ros_topic_manager_handle = tokio::spawn(ros_topic_manager(topic_request_rx));
     future_handles.push(ros_topic_manager_handle);
 
+    let ros_service_manager_handle = tokio::spawn(ros_service_manager(service_request_rx));
+    future_handles.push(ros_service_manager_handle);
 
-    let ros_api_server_handle = tokio::spawn(ros_api_server(topic_request_tx));
+
+    let ros_api_server_handle = tokio::spawn(ros_api_server(topic_request_tx, service_request_tx));
     future_handles.push(ros_api_server_handle);
 
     future::join_all(future_handles).await;

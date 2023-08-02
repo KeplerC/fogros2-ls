@@ -29,6 +29,7 @@ pub struct ROSResponse {
 struct AppState {
     // Channel used to send messages to all connected clients.
     tx: UnboundedSender<ROSTopicRequest>,
+    service_tx: UnboundedSender<ROSTopicRequest>,
 }
 
 
@@ -55,14 +56,35 @@ async fn handle_ros_topic(
 }
 
 
-pub async fn ros_api_server(topic_request_tx: UnboundedSender<ROSTopicRequest>) {
+#[axum_macros::debug_handler]
+// basic handler that responds with a static string
+async fn handle_ros_service(
+    State(state): State<Arc<AppState>>, Json(payload): Json<ROSTopicRequest>,
+) -> impl IntoResponse {
+    info!("received {:?}", payload);
+    state.service_tx.send(payload).expect("state sent failure");
+    // insert your application logic here
+    let result = ROSResponse {
+        result: "done".to_owned(),
+    };
+
+    // this will be converted into a JSON response
+    // with a status code of `201 Created`
+    (StatusCode::CREATED, Json(result))
+}
+
+
+
+pub async fn ros_api_server(topic_request_tx: UnboundedSender<ROSTopicRequest>, service_request_tx: UnboundedSender<ROSTopicRequest>) {
     let app_state = Arc::new(AppState {
         tx: topic_request_tx,
+        service_tx : service_request_tx,
     });
     // build our application with a route
     let app = Router::new()
         .route("/", get(root))
         .route("/topic", post(handle_ros_topic))
+        .route("/service", post(handle_ros_service))
         .with_state(app_state);
 
         let api_port = match env::var_os("SGC_API_PORT") {
