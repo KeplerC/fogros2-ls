@@ -42,6 +42,7 @@ class AddThreeIntsAsyncClientNode(Node):
 
     def __init__(self):
         super().__init__('add_three_ints_client_async')
+        self.get_logger().info(f"Initializing client for /add_three_ints.")
         self.cli = self.create_client(AddThreeInts, 'add_three_ints')
         while not self.cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
@@ -59,17 +60,17 @@ class AddThreeIntsAsyncClientNode(Node):
 def main(args=None):
     rclpy.init(args=args)
 
-    add_three_ints_client = AddThreeIntsAsyncClientNode()
-
     host_name = socket.gethostname()
     host_ip = socket.gethostbyname(host_name)
+    
+    add_three_ints_client = AddThreeIntsAsyncClientNode()
 
     a = 0
     b = 1
     c = 2
 
     while True:
-
+        add_three_ints_client.get_logger().info(f"I am {host_name} ond {host_ip}. Sending request {a}, {b}, {c}")
         response = add_three_ints_client.send_request(a,b,c)
         add_three_ints_client.get_logger().info(
             f'I am {host_name} ond {host_ip}. Result of add_two_ints: {a} + {b} + {c} = {response.sum}')
