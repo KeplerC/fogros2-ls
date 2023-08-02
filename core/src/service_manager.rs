@@ -101,7 +101,7 @@ pub async fn ros_topic_remote_service_provider(
                 );
 
                 // ROS subscriber -> FIB -> RTC
-                let (ros_tx, _ros_rx) = mpsc::unbounded_channel();
+                let (ros_tx, mut ros_rx) = mpsc::unbounded_channel();
                 let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
                 let channel_update_msg = FibStateChange {
                     action: FibChangeAction::ADD,
@@ -111,7 +111,7 @@ pub async fn ros_topic_remote_service_provider(
                 let _ = channel_tx.send(channel_update_msg);
 
 
-                let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx)); //ros_tx not used, no need to transmit to ROS
+                let rtc_handle = tokio::spawn(webrtc_reader_and_writer(stream, ros_tx.clone(), rtc_rx));
                 join_handles.push(rtc_handle);
 
                 if existing_topics.contains(&topic_gdp_name) {
@@ -121,6 +121,7 @@ pub async fn ros_topic_remote_service_provider(
                     let mut service = manager_node.lock().unwrap()
                     .create_service_untyped(&topic_name, &topic_type)
                     .expect("topic subscribing failure");
+
                     // let ros_handle = tokio::spawn(async move {
                     //     info!("ROS handling loop has started!");
                     //     while let Some(packet) = subscriber.next().await {
@@ -135,19 +136,23 @@ pub async fn ros_topic_remote_service_provider(
                         loop {
                             tokio::select!{
                                 Some(req) = service.next() => {
-                                    let mut msg =  req.message;
                                     // send it to webrtc 
-                                    let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, serde_json::to_vec(&msg).unwrap() );
+                                    let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, serde_json::to_vec(&req.message).unwrap() );
                                     info!("sending to webrtc {:?}", packet);
                                     fib_tx.send(packet).expect("send for ros subscriber failure");
-                                    
+                                    tokio::select! {
+                                        Some(packet) = ros_rx.recv() => {
+                                            // send it to ros
+                                            // let msg = r2r::std_msgs::String::from_bytes(&packet).unwrap();
+                                            // service.send_response(msg).await.expect("send for ros subscriber failure");
+                                            info!("received from webrtc in ros_rx {:?}", packet);
+                                            let mut respond_msg = (r2r::UntypedServiceSupport::new_from(&topic_type).unwrap().make_response_msg)();
+                                            let respond_msg_in_json = serde_json::from_str(str::from_utf8(&packet.payload.unwrap()).unwrap()).expect("json parsing failure");
+                                            respond_msg.from_json(respond_msg_in_json).unwrap();
+                                            req.respond(respond_msg).expect("could not send service response");
+                                        }
+                                    }
                                 }, 
-                                
-                                // Some(packet) = rtc_rx.recv() => {
-                                //     // send it to ros
-                                //     let msg = r2r::std_msgs::String::from_bytes(&packet).unwrap();
-                                //     service.send_response(msg).await.expect("send for ros subscriber failure");
-                                // }
                             }
                         }
                     }
@@ -266,6 +271,9 @@ pub async fn ros_topic_local_service_caller(
                                     info!("the decoded payload to publish is {:?}", ros_msg);
                                     let mut resp = untyped_client.request(ros_msg).expect("service call failure").await;
                                     info!("the response is {:?}", resp);
+                                    //send back the response to the rtc
+                                    let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, serde_json::to_vec(&resp.unwrap().unwrap()).unwrap() );
+                                    rtc_tx.send(packet).expect("send for ros subscriber failure");
                                 } else{
                                     info!("{:?} received a packet for name {:?}",pkt_to_forward.gdpname, topic_gdp_name);
                                 }
@@ -669,8 +677,8 @@ pub async fn ros_service_manager(mut service_request_rx: UnboundedReceiver<ROSTo
                         ));
                         info!("detected a new topic {:?} with action {:?}, topic gdpname {:?}", topic_name, action, topic_gdp_name);
                         match action.as_str() {
-                            // locally subscribe, globally publish
-                            "client" => {
+                            // provide service locally and send to remote service
+                            "client" => { 
                                 let topic_name_cloned = topic_name.clone();
                                 let certificate = certificate.clone();
                                 let topic_operation_tx = publisher_operation_tx.clone();
@@ -683,10 +691,8 @@ pub async fn ros_service_manager(mut service_request_rx: UnboundedReceiver<ROSTo
                                 waiting_rib_handles.push(handle);
                             }
 
-                            // locally publish, globally subscribe
+                            // provide service remotely and interact with local service, and send back
                             "service" => {
-                                // subscribe to a pattern that matches the key you're interested in
-                                // create a new thread to handle that listens for the topic
                                 let topic_name_cloned = topic_name.clone();
                                 let certificate = certificate.clone();
                                 let topic_type = topic_type.clone();
