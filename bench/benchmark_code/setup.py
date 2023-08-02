@@ -47,6 +47,8 @@ setup(
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
+            "add_three_ints_client = bench.add_three_ints_client:main",
+            "add_three_ints_service = bench.add_three_ints_service:main",
             "talker_image = bench.talker_image:main",
             "listener_image = bench.listener_image:main",
             "talker_latency = bench.talker_latency:main",
