@@ -302,7 +302,7 @@ pub async fn ros_topic_local_service_caller(
 
 
 /// remote publisher: subscribe locally, publish to webrtc 
-async fn create_new_local_service_caller(
+async fn create_new_remote_service_provider(
     topic_gdp_name: GDPName, topic_name: String, topic_type: String, certificate: Vec<u8>,
     topic_operation_tx: UnboundedSender<TopicModificationRequest>,
 ) {
@@ -439,7 +439,7 @@ async fn create_new_local_service_caller(
     info!("all the subscribers are checked!");
 }
 
-async fn create_new_remote_service_provider(
+async fn create_new_local_service_caller(
     topic_gdp_name: GDPName, topic_name: String, topic_type: String, certificate: Vec<u8>,
     topic_operation_tx: UnboundedSender<TopicModificationRequest>,
 ) {
@@ -670,7 +670,7 @@ pub async fn ros_service_manager(mut service_request_rx: UnboundedReceiver<ROSTo
                         info!("detected a new topic {:?} with action {:?}, topic gdpname {:?}", topic_name, action, topic_gdp_name);
                         match action.as_str() {
                             // locally subscribe, globally publish
-                            "service" => {
+                            "client" => {
                                 let topic_name_cloned = topic_name.clone();
                                 let certificate = certificate.clone();
                                 let topic_operation_tx = publisher_operation_tx.clone();
@@ -684,7 +684,7 @@ pub async fn ros_service_manager(mut service_request_rx: UnboundedReceiver<ROSTo
                             }
 
                             // locally publish, globally subscribe
-                            "client" => {
+                            "service" => {
                                 // subscribe to a pattern that matches the key you're interested in
                                 // create a new thread to handle that listens for the topic
                                 let topic_name_cloned = topic_name.clone();
