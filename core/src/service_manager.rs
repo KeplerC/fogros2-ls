@@ -36,8 +36,8 @@ pub struct TopicModificationRequest {
 }
 
 
-// ROS subscriber -> webrtc (publish remotely)
-pub async fn ros_topic_remote_publisher_handler(
+// ROS service(provider) -> webrtc (publish remotely) -> local service client
+pub async fn ros_topic_remote_service_provider(
     mut status_recv: UnboundedReceiver<TopicModificationRequest>,
 ) {
     let mut join_handles = vec![];
@@ -52,7 +52,7 @@ pub async fn ros_topic_remote_publisher_handler(
 
     let ctx = r2r::Context::create().expect("context creation failure");
     let node = Arc::new(Mutex::new(
-        r2r::Node::create(ctx, "sgc_remote_publisher", "namespace").expect("node creation failure"),
+        r2r::Node::create(ctx, "sgc_remote_service", "namespace").expect("node creation failure"),
     ));
 
     let ros_manager_node_clone = node.clone();
@@ -117,16 +117,31 @@ pub async fn ros_topic_remote_publisher_handler(
                     info!("topic {:?} already exists in existing topics; don't need to create another subscriber", topic_gdp_name);
                 } else {
                     existing_topics.push(topic_gdp_name);
-                    let mut subscriber = manager_node.lock().unwrap()
-                    .subscribe_untyped(&topic_name, &topic_type, r2r::QosProfile::default())
+                    let mut service = manager_node.lock().unwrap()
+                    .create_service_untyped(&topic_name, &topic_type)
                     .expect("topic subscribing failure");
-                    let ros_handle = tokio::spawn(async move {
-                        info!("ROS handling loop has started!");
-                        while let Some(packet) = subscriber.next().await {
-                            // info!("received a ROS packet {:?}", packet);
-                            let ros_msg = packet;
-                            let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, ros_msg );
-                            fib_tx.send(packet).expect("send for ros subscriber failure");
+                    // let ros_handle = tokio::spawn(async move {
+                    //     info!("ROS handling loop has started!");
+                    //     while let Some(packet) = subscriber.next().await {
+                    //         // info!("received a ROS packet {:?}", packet);
+                    //         let ros_msg = packet;
+                    //         let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, ros_msg );
+                    //         fib_tx.send(packet).expect("send for ros subscriber failure");
+                    //     }
+                    // });
+                    let ros_handle = tokio::spawn(async move { 
+                        loop {
+                            tokio::select! {
+                                Some(packet) = service.next().await => {
+                                    let ros_msg = packet;
+                                    let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, ros_msg );
+                                    fib_tx.send(packet).expect("send for ros subscriber failure");
+                                }
+                                else => {
+                                    info!("ROS service handler has exited");
+                                    break;
+                                }
+                            }
                         }
                     });
                     join_handles.push(ros_handle);
@@ -136,8 +151,8 @@ pub async fn ros_topic_remote_publisher_handler(
     }
 }
 
-// webrtc -> ROS publisher (publish locally)
-pub async fn ros_topic_remote_subscriber_handler(
+// webrtc -> sgc_local_service_caller (call the service locally) -> webrtc
+pub async fn ros_topic_local_service_caller(
     mut status_recv: UnboundedReceiver<TopicModificationRequest>,
 ) {
     info!("ros_topic_remote_subscriber_handler has started");
@@ -153,7 +168,7 @@ pub async fn ros_topic_remote_subscriber_handler(
 
     let ctx = r2r::Context::create().expect("context creation failure");
     let node = Arc::new(Mutex::new(
-        r2r::Node::create(ctx, "sgc_remote_subscriber", "namespace")
+        r2r::Node::create(ctx, "sgc_local_service_caller", "namespace")
             .expect("node creation failure"),
     ));
 
@@ -199,7 +214,7 @@ pub async fn ros_topic_remote_subscriber_handler(
 
 
                 info!(
-                    "[ros_topic_remote_subscriber_handler] topic creator for topic {}, type {}, action {:?}",
+                    "[local_service_caller] topic creator for topic {}, type {}, action {:?}",
                     topic_name, topic_type, action
                 );
 
@@ -253,7 +268,8 @@ pub async fn ros_topic_remote_subscriber_handler(
 }
 
 
-async fn create_new_remote_publisher(
+/// remote publisher: subscribe locally, publish to webrtc 
+async fn create_new_local_service_caller(
     topic_gdp_name: GDPName, topic_name: String, topic_type: String, certificate: Vec<u8>,
     topic_operation_tx: UnboundedSender<TopicModificationRequest>,
 ) {
@@ -390,7 +406,7 @@ async fn create_new_remote_publisher(
     info!("all the subscribers are checked!");
 }
 
-async fn create_new_remote_subscriber(
+async fn create_new_remote_service_provider(
     topic_gdp_name: GDPName, topic_name: String, topic_type: String, certificate: Vec<u8>,
     topic_operation_tx: UnboundedSender<TopicModificationRequest>,
 ) {
@@ -581,7 +597,7 @@ pub async fn ros_service_manager(mut service_request_rx: UnboundedReceiver<ROSTo
 
     let (publisher_operation_tx, publisher_operation_rx) = mpsc::unbounded_channel();
     let topic_creator_handle = tokio::spawn(async move {
-        ros_topic_remote_publisher_handler(publisher_operation_rx).await;
+        ros_topic_remote_service_provider(publisher_operation_rx).await;
     });
     waiting_rib_handles.push(topic_creator_handle);
 
@@ -590,7 +606,7 @@ pub async fn ros_service_manager(mut service_request_rx: UnboundedReceiver<ROSTo
         // This is because the ROS node creation is not thread safe 
         // See: https://github.com/ros2/rosbag2/issues/329
         std::thread::sleep(std::time::Duration::from_millis(500));
-        ros_topic_remote_subscriber_handler(subscriber_operation_rx).await;
+        ros_topic_local_service_caller(subscriber_operation_rx).await;
     });
     waiting_rib_handles.push(topic_creator_handle);
 
@@ -621,13 +637,13 @@ pub async fn ros_service_manager(mut service_request_rx: UnboundedReceiver<ROSTo
                         info!("detected a new topic {:?} with action {:?}, topic gdpname {:?}", topic_name, action, topic_gdp_name);
                         match action.as_str() {
                             // locally subscribe, globally publish
-                            "pub" => {
+                            "service" => {
                                 let topic_name_cloned = topic_name.clone();
                                 let certificate = certificate.clone();
                                 let topic_operation_tx = publisher_operation_tx.clone();
                                 let handle = tokio::spawn(
                                     async move {
-                                        create_new_remote_publisher(topic_gdp_name, topic_name_cloned, topic_type, certificate,
+                                        create_new_local_service_caller(topic_gdp_name, topic_name_cloned, topic_type, certificate,
                                             topic_operation_tx).await;
                                     }
                                 );
@@ -635,7 +651,7 @@ pub async fn ros_service_manager(mut service_request_rx: UnboundedReceiver<ROSTo
                             }
 
                             // locally publish, globally subscribe
-                            "sub" => {
+                            "client" => {
                                 // subscribe to a pattern that matches the key you're interested in
                                 // create a new thread to handle that listens for the topic
                                 let topic_name_cloned = topic_name.clone();
@@ -644,7 +660,7 @@ pub async fn ros_service_manager(mut service_request_rx: UnboundedReceiver<ROSTo
                                 let topic_operation_tx = subscriber_operation_tx.clone();
                                 let handle = tokio::spawn(
                                     async move {
-                                        create_new_remote_subscriber(topic_gdp_name, topic_name_cloned, topic_type, certificate, topic_operation_tx).await;
+                                        create_new_remote_service_provider(topic_gdp_name, topic_name_cloned, topic_type, certificate, topic_operation_tx).await;
                                     }
                                 );
                                 waiting_rib_handles.push(handle);

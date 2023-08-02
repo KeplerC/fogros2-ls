@@ -63,21 +63,26 @@ def remove_topics_from_machine(topics, machine):
         send_request("del", topic, machine)
         # sleep(2)
         
-service_topics = [
+robot_service = [
     Topic(
-    "/chatter", "std_msgs/msg/String", "sub"
+    "/add_two_ints", "example_interfaces/srv/AddTwoInts", "client"
 )]
 
-robot_topics = reverse_topics(service_topics)
+server_service = [
+    Topic(
+    "/add_two_ints", "example_interfaces/srv/AddTwoInts", "service"
+)]
 
-cloud = Machine("fogros2-sgc-lite-listener-1:3000")
-robot = Machine("fogros2-sgc-lite-talker-1:3000")
+# robot_topics = reverse_topics(service_topics)
 
-add_topics_to_machine(service_topics, cloud)
-add_topics_to_machine(robot_topics, robot)
-input()
-remove_topics_from_machine(service_topics, cloud)
-remove_topics_from_machine(robot_topics, robot)
+# cloud = Machine("fogros2-sgc-lite-listener-1:3000")
+robot = Machine("localhost:3000")
+
+add_topics_to_machine(robot_service, robot)
+# add_topics_to_machine(robot_topics, robot)
+# input()
+# remove_topics_from_machine(service_topics, cloud)
+# remove_topics_from_machine(robot_topics, robot)
 
 # talker_machine = ""
 # listener_machine = ""
