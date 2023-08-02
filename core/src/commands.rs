@@ -26,7 +26,11 @@ async fn router_async_loop() {
     let ros_topic_manager_handle = tokio::spawn(ros_topic_manager(topic_request_rx));
     future_handles.push(ros_topic_manager_handle);
 
-    let ros_service_manager_handle = tokio::spawn(ros_service_manager(service_request_rx));
+    let ros_service_manager_handle = tokio::spawn(async move {
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+        ros_service_manager(service_request_rx).await;
+    });
+        
     future_handles.push(ros_service_manager_handle);
 
 

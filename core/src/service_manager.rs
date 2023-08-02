@@ -17,6 +17,7 @@ use std::env;
 use std::sync::{Arc, Mutex};
 use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use std::str;
 
 
 use crate::db::*;
@@ -36,7 +37,7 @@ pub struct TopicModificationRequest {
 }
 
 
-// ROS service(provider) -> webrtc (publish remotely) -> local service client
+// ROS service(provider) -> webrtc (publish remotely); webrtc -> local service client
 pub async fn ros_topic_remote_service_provider(
     mut status_recv: UnboundedReceiver<TopicModificationRequest>,
 ) {
@@ -129,21 +130,31 @@ pub async fn ros_topic_remote_service_provider(
                     //         fib_tx.send(packet).expect("send for ros subscriber failure");
                     //     }
                     // });
-                    let ros_handle = tokio::spawn(async move { 
+
+                    let ros_handle = tokio::spawn (async move {
                         loop {
-                            tokio::select! {
-                                Some(packet) = service.next().await => {
-                                    let ros_msg = packet;
-                                    let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, ros_msg );
+                            tokio::select!{
+                                Some(req) = service.next() => {
+                                    let mut msg =  req.message;
+                                    // send it to webrtc 
+                                    let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, serde_json::to_vec(&msg).unwrap() );
+                                    info!("sending to webrtc {:?}", packet);
                                     fib_tx.send(packet).expect("send for ros subscriber failure");
-                                }
-                                else => {
-                                    info!("ROS service handler has exited");
-                                    break;
-                                }
+                                    
+                                }, 
+                                
+                                // Some(packet) = rtc_rx.recv() => {
+                                //     // send it to ros
+                                //     let msg = r2r::std_msgs::String::from_bytes(&packet).unwrap();
+                                //     service.send_response(msg).await.expect("send for ros subscriber failure");
+                                // }
                             }
                         }
-                    });
+                    }
+                    );
+
+
+
                     join_handles.push(ros_handle);
                 }   
             }
@@ -221,7 +232,7 @@ pub async fn ros_topic_local_service_caller(
 
                 // RTC -> FIB -> ROS publisher
                 let (ros_tx, mut ros_rx) = mpsc::unbounded_channel();
-                let (_rtc_tx, rtc_rx) = mpsc::unbounded_channel();
+                let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
 
                 let channel_update_msg = FibStateChange {
                     action: FibChangeAction::ADD,
@@ -238,28 +249,50 @@ pub async fn ros_topic_local_service_caller(
                     info!("topic {:?} already exists in existing topics; don't need to create another publisher", topic_gdp_name);
                 } else {
                     existing_topics.push(topic_gdp_name);
-                    let publisher = manager_node.lock().unwrap()
-                    .create_publisher_untyped(&topic_name, &topic_type, r2r::QosProfile::default())
+                    let untyped_client = manager_node.lock().unwrap()
+                    .create_client_untyped(&topic_name, &topic_type)
                     .expect("topic publisher create failure");
-
+                    
+                    // receive from the rtc_rx and call the local service 
                     let ros_handle = tokio::spawn(async move {
-                        info!("[ros_topic_remote_subscriber_handler] ROS handling loop has started!");
+                        info!("[ros_topic_local_service_caller] ROS handling loop has started!");
                         loop{
-                            let pkt_to_forward = ros_rx.recv().await.expect("ros_topic_remote_subscriber_handler crashed!!");
+                            let pkt_to_forward = ros_rx.recv().await.expect("ros_topic_local_service_caller crashed!!");
                             if pkt_to_forward.action == GdpAction::Forward {
                                 info!("new payload to publish");
                                 if pkt_to_forward.gdpname == topic_gdp_name {
                                     let payload = pkt_to_forward.get_byte_payload().unwrap();
-                                    //let ros_msg = serde_json::from_str(str::from_utf8(payload).unwrap()).expect("json parsing failure");
-                                    // info!("the decoded payload to publish is {:?}", ros_msg);
-                                    publisher.publish(payload.clone()).unwrap();
+                                    let ros_msg = serde_json::from_str(str::from_utf8(payload).unwrap()).expect("json parsing failure");
+                                    info!("the decoded payload to publish is {:?}", ros_msg);
+                                    let mut resp = untyped_client.request(ros_msg).expect("service call failure").await;
+                                    info!("the response is {:?}", resp);
                                 } else{
                                     info!("{:?} received a packet for name {:?}",pkt_to_forward.gdpname, topic_gdp_name);
                                 }
                             }
                         }
                     });
-                    join_handles.push(ros_handle);
+
+                    // let ros_handle = tokio::spawn(async move {
+                    //     info!("[ros_topic_remote_subscriber_handler] ROS handling loop has started!");
+                    //     loop{
+                    //         let pkt_to_forward = ros_rx.recv().await.expect("ros_topic_remote_subscriber_handler crashed!!");
+                    //         if pkt_to_forward.action == GdpAction::Forward {
+                    //             info!("new payload to publish");
+                    //             if pkt_to_forward.gdpname == topic_gdp_name {
+                    //                 let payload = pkt_to_forward.get_byte_payload().unwrap();
+                    //                 //let ros_msg = serde_json::from_str(str::from_utf8(payload).unwrap()).expect("json parsing failure");
+                    //                 // info!("the decoded payload to publish is {:?}", ros_msg);
+                    //                 publisher.publish(payload.clone()).unwrap();
+                    //             } else{
+                    //                 info!("{:?} received a packet for name {:?}",pkt_to_forward.gdpname, topic_gdp_name);
+                    //             }
+                    //         }
+                    //     }
+                    // });
+                   join_handles.push(ros_handle);
+
+
                 }
                 
             }

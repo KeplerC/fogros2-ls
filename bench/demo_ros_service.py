@@ -65,20 +65,21 @@ def remove_topics_from_machine(topics, machine):
         
 robot_service = [
     Topic(
-    "/add_two_ints", "example_interfaces/srv/AddTwoInts", "client"
+    "/add_three_ints", "bench_msgs/srv/AddThreeInts", "client"
 )]
 
 server_service = [
     Topic(
-    "/add_two_ints", "example_interfaces/srv/AddTwoInts", "service"
+    "/add_three_ints", "bench_msgs/srv/AddThreeInts", "service"
 )]
 
 # robot_topics = reverse_topics(service_topics)
 
 # cloud = Machine("fogros2-sgc-lite-listener-1:3000")
 robot = Machine("localhost:3000")
-
+cloud = Machine("localhost:3001")
 add_topics_to_machine(robot_service, robot)
+add_topics_to_machine(server_service, cloud)
 # add_topics_to_machine(robot_topics, robot)
 # input()
 # remove_topics_from_machine(service_topics, cloud)
