@@ -11,8 +11,8 @@ pub fn get_redis_url() -> String {
 }
 
 pub fn get_redis_address_and_port() -> (String, u16) {
-    let config = AppConfig::fetch().expect("Failed to fetch config");
-    let url = config.routing_information_base_address;
+    // let config = AppConfig::fetch().expect("Failed to fetch config");
+    let url = routing_information_base_address;
     let mut split = url.split(":");
     let address = split.next().unwrap().to_string();
     let port = split.next().unwrap().parse::<u16>().unwrap();
