@@ -6,14 +6,12 @@ use crate::topic_manager::ros_topic_manager;
 use futures::future;
 
 use tokio::sync::mpsc;
-use utils::app_config::AppConfig;
 use utils::error::Result;
 
 /// inspired by https://stackoverflow.com/questions/71314504/how-do-i-simultaneously-read-messages-from-multiple-tokio-channels-in-a-single-t
 /// TODO: later put to another file
 #[tokio::main]
 async fn router_async_loop() {
-    let config = AppConfig::fetch().expect("App config unable to load");
     info!("{:#?}", config);
 
     let (topic_request_tx, topic_request_rx) = mpsc::unbounded_channel();
