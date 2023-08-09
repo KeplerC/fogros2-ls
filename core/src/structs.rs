@@ -95,6 +95,7 @@ pub struct GDPPacket {
     // preferably forward directly without conversion
     pub payload: Option<Vec<u8>>,
     pub name_record: Option<GDPNameRecord>,
+    pub guid:  Option<GDPName>,
     pub source: GDPName,
 }
 

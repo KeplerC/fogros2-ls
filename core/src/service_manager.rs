@@ -4,7 +4,7 @@ use crate::connection_fib::connection_fib_handler;
 #[cfg(feature = "ros")]
 use crate::network::webrtc::{register_webrtc_stream, webrtc_reader_and_writer};
 
-use crate::pipeline::construct_gdp_forward_from_bytes;
+use crate::pipeline::{construct_gdp_forward_from_bytes, construct_gdp_forward_with_guid};
 use crate::structs::{
     gdp_name_to_string, generate_random_gdp_name, get_gdp_name_from_topic, GDPName, GdpAction,
     Packet,
@@ -27,7 +27,7 @@ use redis_async::{client, resp::FromResp};
 use tokio::sync::mpsc::{self};
 
 use tokio::time::Duration;
-
+use byteorder::{ByteOrder, LittleEndian};
 pub struct TopicModificationRequest {
     action: FibChangeAction,
     stream: Option<async_datachannel::DataStream>,
@@ -35,6 +35,30 @@ pub struct TopicModificationRequest {
     topic_type: String,
     certificate: Vec<u8>,
 }
+
+
+// pub struct rmw_request_id_s {
+// pub writer_guid: [i8; 16usize],
+// pub sequence_number: i64,
+// }
+// generate [u8:4] from the above struct 
+
+// pub fn get_service_guid_from_request(
+//     request: r2r::UntypedServiceRequest
+// ) -> GDPName {
+//     // GDPANME = [u8:4]
+//     let mut service_guid = GDPName([0; 4]);
+//     let mut writer_guid = [0; 16];
+//     let mut sequence_number = 0;
+//     let mut request_id = request.request_id;
+//     // let mut request_id_bytes = request_id.as_bytes();
+//     let mut writer_guid_bytes = request_id.writer_guid;//&request_id_bytes[0..16];
+//     let mut sequence_number_bytes = request_id.sequence_number;//&request_id_bytes[16..24];
+//     writer_guid.copy_from_slice(&writer_guid_bytes);
+//     sequence_number = i64::from_le_bytes(sequence_number_bytes.try_into().unwrap());
+//     service_guid.0.copy_from_slice(&writer_guid[0..4]);
+//     service_guid   
+// }
 
 
 // ROS service(provider) -> webrtc (publish remotely); webrtc -> local service client
@@ -137,7 +161,8 @@ pub async fn ros_topic_remote_service_provider(
                             tokio::select!{
                                 Some(req) = service.next() => {
                                     // send it to webrtc 
-                                    let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, serde_json::to_vec(&req.message).unwrap() );
+                                    let packet_guid = req.request_id.to_bytes();
+                                    let packet = construct_gdp_forward_with_guid(topic_gdp_name, topic_gdp_name, serde_json::to_vec(&req.message).unwrap(),packet_guid );
                                     info!("sending to webrtc {:?}", packet);
                                     fib_tx.send(packet).expect("send for ros subscriber failure");
                                     tokio::select! {
@@ -272,7 +297,7 @@ pub async fn ros_topic_local_service_caller(
                                     let mut resp = untyped_client.request(ros_msg).expect("service call failure").await;
                                     info!("the response is {:?}", resp);
                                     //send back the response to the rtc
-                                    let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, serde_json::to_vec(&resp.unwrap().unwrap()).unwrap() );
+                                    let packet = construct_gdp_forward_with_guid(topic_gdp_name, topic_gdp_name, serde_json::to_vec(&resp.unwrap().unwrap()).unwrap() );
                                     rtc_tx.send(packet).expect("send for ros subscriber failure");
                                 } else{
                                     info!("{:?} received a packet for name {:?}",pkt_to_forward.gdpname, topic_gdp_name);

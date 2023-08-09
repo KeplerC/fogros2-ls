@@ -52,6 +52,7 @@ redis-async = "0.16.0"
 axum = "0.6.18"
 axum-macros = "0.3.7"
 tokio-util = "0.7.8"
+byteorder = "1.4.3"
 
 [build-dependencies]
 tonic-build = "0.8"

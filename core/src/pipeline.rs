@@ -11,6 +11,22 @@ pub fn construct_gdp_forward_from_bytes(
         gdpname: destination,
         payload: Some(buffer),
         source: source,
+        guid: None,
+        name_record: None,
+    }
+}
+
+/// construct gdp struct from bytes
+/// bytes is put as payload
+pub fn construct_gdp_forward_with_guid(
+    destination: GDPName, source: GDPName, buffer: Vec<u8>, guid: GDPName,
+) -> GDPPacket {
+    GDPPacket {
+        action: GdpAction::Forward,
+        gdpname: destination,
+        payload: Some(buffer),
+        source: source,
+        guid: Some(guid),
         name_record: None,
     }
 }
@@ -25,6 +41,7 @@ pub fn construct_gdp_advertisement_from_structs(
         gdpname: destination,
         source,
         payload: None,
+        guid: None,
         name_record: Some(name_record),
     }
 }
@@ -39,6 +56,7 @@ pub fn construct_gdp_advertisement_from_bytes(
             gdpname: destination,
             source: source,
             payload: None,
+            guid: None,
             name_record: None,
         };
     }
@@ -53,6 +71,7 @@ pub fn construct_gdp_advertisement_from_bytes(
             )
             .unwrap(),
         ),
+        guid: None,
     }
 }
 
@@ -65,6 +84,7 @@ pub fn construct_rib_query_from_bytes(
         gdpname: destination,
         source: source,
         payload: None,
+        guid: None,
         name_record: Some(name_record),
     }
 }
