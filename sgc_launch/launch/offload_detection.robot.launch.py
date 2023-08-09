@@ -29,16 +29,27 @@ def generate_launch_description():
         emulate_tty = True,
         parameters = [
             {"whoami": "robot"},
-            {"request_topic_name": "/offload_detection/scheduler_yolo/input/cloud"}, 
-            {"request_topic_type": "sensor_msgs/msg/CompressedImage"}, 
-            {"response_topic_name": "/offload_detection/scheduler_yolo/output/cloud"}, 
-            {"response_topic_type": "sensor_msgs/msg/CompressedImage"}, 
             {"network_latency_bound" : 0.4}, 
             {"compute_latency_bound" : 0.3}, 
             {"plot" : True}, 
         ]
     )
     launch_description.add_action(time_bound_analyzer)
+
+    heuristic_pubsub = Node(
+        package="sgc_launch",
+        executable="heuristic_pubsub", 
+        output="screen",
+        emulate_tty = True,
+        parameters = [
+            {"whoami": "robot"},
+            {"request_topic_name": "/offload_detection/scheduler_yolo/input/cloud"}, 
+            {"request_topic_type": "sensor_msgs/msg/CompressedImage"}, 
+            {"response_topic_name": "/offload_detection/scheduler_yolo/output/cloud"}, 
+            {"response_topic_type": "sensor_msgs/msg/CompressedImage"}, 
+        ]
+    )
+    launch_description.add_action(heuristic_pubsub)
 
     camera = Node(
         package = "offload_detection",

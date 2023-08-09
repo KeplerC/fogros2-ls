@@ -32,15 +32,12 @@ class SGC_Analyzer(rclpy.node.Node):
         # time bound analysis is only conducted if either network or compute latency bound is set
         self.enforce_time_bound_analysis = self.network_latency_bound > 0 or self.compute_latency_bound > 0
 
-        # topic to subscribe to know the start and end of the benchmark
-        self.declare_parameter("request_topic_name", "")
-        request_topic = self.get_parameter("request_topic_name").value
-        self.declare_parameter("request_topic_type", "")
-        request_topic_type = self.get_parameter("request_topic_type").value
-        self.declare_parameter("response_topic_name", "")
-        response_topic = self.get_parameter("response_topic_name").value
-        self.declare_parameter("response_topic_type", "")
-        response_topic_type = self.get_parameter("response_topic_type").value
+        self.latency_topic = self.create_subscription(
+            get_ROS_class("std_msgs/msg/Float64"),
+            "fogros_sgc/latency",
+            self.latency_topic_callback,
+            1)
+
 
         # whether or not to generate a plot
         self.declare_parameter("plot", False)
@@ -58,18 +55,6 @@ class SGC_Analyzer(rclpy.node.Node):
             }]
         )
         # used for maintaining the current dataframe index
-        
-        self.request_topic = self.create_subscription(
-            get_ROS_class(request_topic_type),
-            request_topic,
-            self.request_topic_callback,
-            1)
-
-        self.response_topic = self.create_subscription(
-            get_ROS_class(response_topic_type),
-            response_topic,
-            self.response_topic_callback,
-            1)
         
         self.status_publisher = self.create_publisher(Profile, 'fogros_sgc/profile', 10)
 
@@ -119,14 +104,10 @@ class SGC_Analyzer(rclpy.node.Node):
         self.last_response_time = None 
         self.latency_sliding_window = []
 
-    def request_topic_callback(self, msg):
-        self.last_request_time = time.time()
-        # self.logger.info(f"request: {self.last_request_time}")
-
-    # calculate latency based on heuristics
-    def response_topic_callback(self, msg):
-        self.latency_sliding_window.append((time.time() - self.last_request_time))
-        # self.logger.info(f"response: {time.time()}, {(time.time() - self.last_request_time)}")
+    def latency_topic_callback(self, latency_msg):
+        # for now, message is defined as a string
+        # identity, type, latency 
+        self.latency_sliding_window.append(latency_msg.data)
 
     def profile_topic_callback(self, profile_update):
         self.logger.info(f"received profile update from {profile_update}")
@@ -262,7 +243,9 @@ class SGC_Analyzer(rclpy.node.Node):
         #         return machine
         #     if self.machine_dict[machine].cpu_frequency >= self.profile.cpu_frequency:
         #         return machine
-        return "machine_cloud" #TODO: currently it's hardcoded placeholder
+        # return "machine_cloud" #TODO: currently it's hardcoded placeholder
+        self.logger.error("not implemented yet; need to switch to a compute")
+        pass
     
     def _get_machine_with_best_network(self):
         # use ping to get the latency

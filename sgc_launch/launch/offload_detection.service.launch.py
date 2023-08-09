@@ -21,10 +21,20 @@ def generate_launch_description():
         ]
     )
     launch_description.add_action(sgc_router)
-
     time_bound_analyzer = Node(
         package="sgc_launch",
         executable="time_bound_analyzer", 
+        output="screen",
+        emulate_tty = True,
+        parameters = [
+            {"whoami": "machine_local"},
+        ]
+    )
+    launch_description.add_action(time_bound_analyzer)
+
+    heuristic_pubsub = Node(
+        package="sgc_launch",
+        executable="heuristic_pubsub", 
         output="screen",
         emulate_tty = True,
         parameters = [
@@ -35,7 +45,7 @@ def generate_launch_description():
             {"response_topic_type": "sensor_msgs/msg/CompressedImage"}, 
         ]
     )
-    launch_description.add_action(time_bound_analyzer)
+    launch_description.add_action(heuristic_pubsub)
 
     detector = Node(
         package = "offload_detection",
