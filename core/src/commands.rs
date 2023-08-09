@@ -12,7 +12,6 @@ use utils::error::Result;
 /// TODO: later put to another file
 #[tokio::main]
 async fn router_async_loop() {
-    info!("{:#?}", config);
 
     let (topic_request_tx, topic_request_rx) = mpsc::unbounded_channel();
     let mut future_handles = Vec::new();
@@ -40,16 +39,16 @@ pub fn router() -> Result<()> {
 
 /// Show the configuration file
 pub fn config() -> Result<()> {
-    let config = AppConfig::fetch()?;
-    info!("{:#?}", config);
+    // let config = AppConfig::fetch()?;
+    // info!("{:#?}", config);
 
     Ok(())
 }
 #[tokio::main]
 /// Simulate an error
 pub async fn simulate_error() -> Result<()> {
-    let config = AppConfig::fetch().expect("App config unable to load");
-    info!("{:#?}", config);
+    // let config = AppConfig::fetch().expect("App config unable to load");
+    // info!("{:#?}", config);
     // test_cert();
     // get address from default gateway
 
