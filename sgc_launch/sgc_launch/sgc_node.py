@@ -269,8 +269,6 @@ class SGC_Router_Node(rclpy.node.Node):
             logger.info(f"crypto file does not exist in {crypto_path}, generating...")
             subprocess.call([f"cd {ws_path}/sgc_launch/share/sgc_launch/configs && ./generate_crypto.sh"],  shell=True)
         
-        # setup the config path
-        current_env["SGC_CONFIG"] = f"{config_path}/automatic.toml"
         # setup crypto path
         current_env["SGC_CRYPTO_PATH"] = f"{crypto_path}"
 

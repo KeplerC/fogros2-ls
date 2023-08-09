@@ -7,6 +7,7 @@ use crate::structs::{GDPPacket, GdpAction, Packet};
 
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 const UDP_BUFFER_SIZE: usize = 1748000; // 17kb
+const signaling_server_address: &str = "ws://3.18.194.127:8000";
 
 use async_datachannel::{DataStream, Message, PeerConnection, RtcConfig};
 use async_tungstenite::{tokio::connect_async, tungstenite};
@@ -18,7 +19,7 @@ use futures::{
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use tracing::info;
-use utils::app_config::AppConfig;
+// use utils::app_config::AppConfig;
 
 /// parse the header of the packet using the first null byte as delimiter
 /// return a vector of (header, payload) pairs if the header is complete
@@ -87,14 +88,14 @@ struct SignalingMessage {
 }
 
 pub async fn register_webrtc_stream(my_id: &str, peer_to_dial: Option<String>) -> DataStream {
-    let config = AppConfig::fetch().expect("Failed to fetch config");
+    // let config = AppConfig::fetch().expect("Failed to fetch config");
     let ice_servers = vec!["stun:stun.l.google.com:19302"];
     let conf = RtcConfig::new(&ice_servers);
     let (tx_sig_outbound, mut rx_sig_outbound) = mpsc::channel(32);
     let (mut tx_sig_inbound, rx_sig_inbound) = mpsc::channel(32);
     let listener = PeerConnection::new(&conf, (tx_sig_outbound, rx_sig_inbound)).unwrap();
 
-    let signaling_uri = config.signaling_server_address;
+    let signaling_uri = signaling_server_address;
     let signaling_uri = format!("{}/{}", signaling_uri, my_id);
     info!("The signaling URI is {}", signaling_uri);
 
