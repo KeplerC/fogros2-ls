@@ -135,10 +135,12 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         request = SgcAssignment.Request()
         request.machine.data = self._get_service_machine_name_from_state_assignment()
         request.state.data = "standby" 
+        self.assignment_dict[request.machine.data] = "standby" 
         _ = self.assignment_service_client.call_async(request)
         
         request.machine.data = machine_new
         request.state.data = "service" 
+        self.assignment_dict[request.machine.data] = "service" 
         _ = self.assignment_service_client.call_async(request)
 
     def _load_initial_state_assignment(self):
