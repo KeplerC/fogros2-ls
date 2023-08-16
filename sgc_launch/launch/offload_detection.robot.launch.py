@@ -34,14 +34,12 @@ def generate_launch_description():
     )
     launch_description.add_action(time_bound_analyzer)
 
-
     time_bound_analyzer = Node(
         package="sgc_launch",
         executable="sgc_policy_scheduler", 
         output="screen",
         emulate_tty = True,
         parameters = [
-            {"whoami": "robot"},
             {"config_file_name": "offload_detection.yaml"}, 
         ]
     )

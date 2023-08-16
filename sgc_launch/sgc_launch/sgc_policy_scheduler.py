@@ -42,10 +42,6 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         self.median_latency_bound = float(self.config["time_bound"]["median_latency"]) if "median_latency" in self.config["time_bound"] else -1
         self.min_latency_bound = float(self.config["time_bound"]["min_latency"]) if "min_latency" in self.config["time_bound"] else -1
         self.std_latency_bound = float(self.config["time_bound"]["std_latency"]) if "std_latency" in self.config["time_bound"] else -1
-        # self.mean_latency_bound = float(self.config["time_bound"]["mean_latency"]) if self.config["time_bound"]["mean_latency"] else -1
-        # self.median_latency_bound = float(self.config["time_bound"]["median_latency"]) if self.config["time_bound"]["median_latency"] else -1
-        # self.min_latency_bound = float(self.config["time_bound"]["min_latency"]) if self.config["time_bound"]["min_latency"] else -1
-        # self.std_latency_bound = float(self.config["time_bound"]["std_latency"]) if self.config["time_bound"]["std_latency"] else -1
 
     def _load_config_file(self):
         self.declare_parameter("config_path", "")
@@ -68,8 +64,12 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         self.machine_profile_dict[profile_update.identity.data] = profile_update
 
         # we assume the robot runs the scheduler for now
+        # self.logger.info(f"")
         if profile_update.identity.data == self._get_robot_machine_name_from_state_assignment():
-            self._check_latency_bound(profile_update)
+            if profile_update.median_latency != 0:
+                self._check_latency_bound(profile_update)
+            else:
+                self.logger.info(f"median latency is 0, no latency data is collected this window")
             
     # check if the latency is within the bound using heuristics
     def _check_latency_bound(self, profile):
@@ -119,6 +119,7 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
             if self.machine_profile_dict[machine].latency == 0:
                 self.logger.info(f"switch to {machine} because it has not been profiled yet")
                 return machine
+            
     def _get_machine_with_best_network(self):
         # use ping to get the latency
         latency_dict = dict()

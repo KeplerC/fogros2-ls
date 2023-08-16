@@ -41,7 +41,7 @@ assignment:
   machine_cloud: standby
 
 time_bound:
-  mean_latency: 0.3
+  mean_latency: 0.05
   # std_latency: 0.1
   # median_latency: 0.3
   # max_latency: 0.5
