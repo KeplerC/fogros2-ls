@@ -25,6 +25,8 @@ class Time_Bound_Analyzer(rclpy.node.Node):
 
         self.declare_parameter("whoami", "")
         self.identity = self.get_parameter("whoami").value
+        self.declare_parameter("latency_window", 3.0)
+        self.latency_window = self.get_parameter("latency_window").value
 
         self.latency_topic = self.create_subscription(
             get_ROS_class("std_msgs/msg/Float64"),
@@ -44,7 +46,6 @@ class Time_Bound_Analyzer(rclpy.node.Node):
         self.profile.num_cpu_core = psutil.cpu_count()
         freq = [freq.current for freq in psutil.cpu_freq(True)]
         average_freq = sum(freq) / len(freq)
-        self.logger.info(f"{freq}")
         self.profile.cpu_frequency = float(average_freq)
 
         try:
@@ -60,10 +61,8 @@ class Time_Bound_Analyzer(rclpy.node.Node):
 
         self.status_publisher = self.create_publisher(Profile, 'fogros_sgc/profile', 10)
 
-        self.add_on_set_parameters_callback(self.parameters_callback)
-
         self.create_timer(1, self.update_timer_callback)
-        self.create_timer(3, self.stats_timer_callback)
+        self.create_timer(self.latency_window, self.stats_timer_callback)
 
         self.latency_sliding_window = []
 
@@ -84,49 +83,20 @@ class Time_Bound_Analyzer(rclpy.node.Node):
         # )
         
         if self.latency_sliding_window:
-            latency = sum(self.latency_sliding_window) / len(self.latency_sliding_window) # / 1000000000
-            self.get_logger().info(f"Average latency is {latency} out of {sorted(self.latency_sliding_window)}")
-            # self.latency_df = pd.concat(
-            #     [self.latency_df, pd.DataFrame([
-            #         {
-            #         "timestamp": self.current_timestamp,
-            #         "latency": latency,
-            #         "machine": self.identity,
-            #         }
-            #     ])], ignore_index=True
-            # )
-
-            # TODO: need to record the history of the attempts, currently it only gets the best one 
-            # there might be some machine in the middle that can get both (e.g. an edge server)
-            if self.enforce_time_bound_analysis:
-                need_better_compute, need_better_network = self._check_latency_bound()
-                if need_better_compute:
-                    machine = self._get_machine_with_better_compute()
-                    self.logger.info(f"need better compute; switching to machine {machine}")
-                    self._switch_to_machine(machine)
-                elif need_better_network:
-                    machine = self._get_machine_with_best_network()
-                    self.logger.info(f"need better network; switching to machine {machine}")
-                    self._switch_to_machine(machine)
-            
+            mean_latency = sum(self.latency_sliding_window) / len(self.latency_sliding_window)
+            max_latency = max(self.latency_sliding_window)
+            min_latency = min(self.latency_sliding_window)
+            median_latency = np.median(self.latency_sliding_window)
+            std_latency = np.std(self.latency_sliding_window)
+            self.get_logger().info("Latency: mean: {:.2f}, max: {:.2f}, min: {:.2f}, median: {:.2f}, std: {:.2f}".format(
+                mean_latency, max_latency, min_latency, median_latency, std_latency
+            ))
+        else:
+            self.get_logger().info("No latency data received")
             
         self.latency_sliding_window = []
         self.profile.latency = float(latency)
         self.status_publisher.publish(self.profile)
-
-    def parameters_callback(self, params):
-        for param in params:
-            if param._name == "compute_latency_bound":
-                self.compute_latency_bound = param._value
-                self.logger.warn(f"successfully changing {vars(param)} to {self.compute_latency_bound}")
-                plt.clf()
-            if param._name == "network_latency_bound":
-                self.network_latency_bound = param._value
-                self.logger.warn(f"successfully changing {vars(param)} to {self.network_latency_bound}")
-                plt.clf()
-            else:
-                self.logger.warn(f"changing {vars(param)} is not supported yet")
-        return SetParametersResult(successful=True)
 
 def main():
     rclpy.init()

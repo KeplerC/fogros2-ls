@@ -21,13 +21,15 @@ def generate_launch_description():
         ]
     )
     launch_description.add_action(sgc_router)
+
     time_bound_analyzer = Node(
         package="sgc_launch",
-        executable="time_bound_analyzer", 
+        executable="sgc_time_analyzer", 
         output="screen",
         emulate_tty = True,
         parameters = [
             {"whoami": "machine_local"},
+            {"latency_window" : 3.0}, 
         ]
     )
     launch_description.add_action(time_bound_analyzer)

@@ -24,14 +24,12 @@ def generate_launch_description():
 
     time_bound_analyzer = Node(
         package="sgc_launch",
-        executable="time_bound_analyzer", 
+        executable="sgc_time_analyzer", 
         output="screen",
         emulate_tty = True,
         parameters = [
             {"whoami": "robot"},
-            {"network_latency_bound" : 0.4}, 
-            {"compute_latency_bound" : 0.3}, 
-            {"plot" : True}, 
+            {"latency_window" : 3.0}, 
         ]
     )
     launch_description.add_action(time_bound_analyzer)

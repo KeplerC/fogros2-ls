@@ -11,4 +11,4 @@ float64 min_latency 0
 float64 max_latency 0
 float64 mean_latency 0
 float64 median_latency 0
-float64 sigma_latency 0
+float64 std_latency 0
