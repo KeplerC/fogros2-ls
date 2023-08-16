@@ -42,3 +42,7 @@ assignment:
 
 time_bound:
   mean_latency: 0.3
+  # std_latency: 0.1
+  # median_latency: 0.3
+  # max_latency: 0.5
+  # min_latency: 0.1
