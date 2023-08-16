@@ -39,3 +39,6 @@ assignment:
   robot: robot
   machine_local: service
   machine_cloud: standby
+
+time_bound:
+  mean_latency: 0.3

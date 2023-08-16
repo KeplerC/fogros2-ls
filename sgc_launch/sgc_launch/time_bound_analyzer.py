@@ -91,11 +91,15 @@ class Time_Bound_Analyzer(rclpy.node.Node):
             self.get_logger().info("Latency: mean: {:.2f}, max: {:.2f}, min: {:.2f}, median: {:.2f}, std: {:.2f}".format(
                 mean_latency, max_latency, min_latency, median_latency, std_latency
             ))
+            self.profile.min_latency = min_latency
+            self.profile.max_latency = max_latency
+            self.profile.mean_latency = mean_latency
+            self.profile.median_latency = median_latency
+            self.profile.std_latency = std_latency
         else:
             self.get_logger().info("No latency data received")
             
         self.latency_sliding_window = []
-        self.profile.latency = float(latency)
         self.status_publisher.publish(self.profile)
 
 def main():

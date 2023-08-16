@@ -16,47 +16,14 @@ import seaborn as sns
 import numpy as np 
 from rcl_interfaces.msg import SetParametersResult
 
-class SGC_Analyzer(rclpy.node.Node):
+class SGC_Policy_Scheduler(rclpy.node.Node):
     def __init__(self):
-        super().__init__('sgc_time_bound_analyzer')
-
-        self.declare_parameter("whoami", "")
-        self.identity = self.get_parameter("whoami").value
-
-        # latency bound in second 
-        self.declare_parameter("network_latency_bound", 0.0)
-        self.network_latency_bound = self.get_parameter("network_latency_bound").value
-        self.declare_parameter("compute_latency_bound", 0.0)
-        self.compute_latency_bound = self.get_parameter("compute_latency_bound").value
-
-        # time bound analysis is only conducted if either network or compute latency bound is set
-        self.enforce_time_bound_analysis = self.network_latency_bound > 0 or self.compute_latency_bound > 0
-
-        self.latency_topic = self.create_subscription(
-            get_ROS_class("std_msgs/msg/Float64"),
-            "fogros_sgc/latency",
-            self.latency_topic_callback,
-            1)
-
-
-        # whether or not to generate a plot
-        self.declare_parameter("plot", False)
-        self.plot = self.get_parameter("plot").value
-
+        super().__init__('sgc_policy_scheduler')
         self.logger = self.get_logger()
 
+        self.load_config_file()
+
         self.machine_dict = dict()
-        self.current_timestamp = int(time.time()) + 1
-        self.latency_df = pd.DataFrame(
-            [{
-                "timestamp": self.current_timestamp,
-                "latency": np.nan,
-                "machine": "",
-            }]
-        )
-        # used for maintaining the current dataframe index
-        
-        self.status_publisher = self.create_publisher(Profile, 'fogros_sgc/profile', 10)
 
         # subscribe to the profile topic from other machines (if any)
         self.status_topic = self.create_subscription(
@@ -64,50 +31,25 @@ class SGC_Analyzer(rclpy.node.Node):
             'fogros_sgc/profile',
             self.profile_topic_callback,
             10)
-        self.add_on_set_parameters_callback(self.parameters_callback)
-        
-        self.profile = Profile()
-        self.profile.identity.data = self.identity
-        self.profile.ip_addr.data = get_public_ip_address()
-        self.profile.num_cpu_core = psutil.cpu_count()
-        freq = [freq.current for freq in psutil.cpu_freq(True)]
-        average_freq = sum(freq) / len(freq)
-        self.logger.info(f"{freq}")
-        self.profile.cpu_frequency = float(average_freq)
-
-        try:
-            import pynvml
-            pynvml.nvmlInit()
-            self.has_gpu = pynvml.nvmlDeviceGetCount() > 0
-            if not self.has_gpu:
-                print(f"No GPU with ID {self.gpu_id} found.")
-        except pynvml.NVMLError_LibraryNotFound:
-            print("NVIDIA driver not installed.")
-            self.has_gpu = False
-        self.profile.has_gpu = self.has_gpu
 
         # assignment service client to sgc_node
         self.assignment_service_client = self.create_client(SgcAssignment, 'sgc_assignment_service')
 
-        self.machine_dict[self.identity] = self.profile
+    def load_config_file(self):
+        self.declare_parameter("config_path", "")
+        self.config_path = self.get_parameter("config_path").value
 
+        self.declare_parameter("config_file_name", "offload_detection.yaml") # ROS2 parameter is strongly typed
+        self.config_file_name = self.get_parameter("config_file_name").value
 
-        self.create_timer(1, self.update_timer_callback)
-        self.create_timer(3, self.stats_timer_callback)
-
-        # Current heuristic: 
-        # response_timestamp - the latest previous request timestamp 
-        # this works if the resposne can catch up with the request rate 
-        # if the rate cannot be controlled, simply publish message 
-        # to some topic that indicates the start and end the request 
-        self.last_request_time = None 
-        self.last_response_time = None 
-        self.latency_sliding_window = []
-
-    def latency_topic_callback(self, latency_msg):
-        # for now, message is defined as a string
-        # identity, type, latency 
-        self.latency_sliding_window.append(latency_msg.data)
+        current_env = os.environ.copy()
+        current_env["PATH"] = f"/usr/sbin:/sbin:{current_env['PATH']}"
+        ws_path = current_env["COLCON_PREFIX_PATH"]
+        config_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs" if not config_path else config_path
+        config_yaml_file_path = f"{config_path}/{self.config_file_name}"
+        with open(config_yaml_file_path, "r") as f:
+            self.config = yaml.safe_load(f)
+            self.logger.info(f"The config file is \n {pprint.pformat(self.config)}")
 
     def profile_topic_callback(self, profile_update):
         self.logger.info(f"received profile update from {profile_update}")
@@ -126,79 +68,8 @@ class SGC_Analyzer(rclpy.node.Node):
                         }
                     ])], ignore_index=True
                 )
-    
-    def update_timer_callback(self):
-        self.current_timestamp = int(time.time()) + 1 # round up
 
-    # run every X second to calculate the profile message and publish to the topic 
-    # if it's the controller node (i.e. robot), also check if the latency is within the bound
-    def stats_timer_callback(self):
-        latency = 0
-        # self.latency_df = pd.concat(
-        #     [self.latency_df, pd.DataFrame([current_timestamp, None, None])], ignore_index=True
-        # )
-        
-        if self.latency_sliding_window:
-            latency = sum(self.latency_sliding_window) / len(self.latency_sliding_window) # / 1000000000
-            self.get_logger().info(f"Average latency is {latency} out of {sorted(self.latency_sliding_window)}")
-            self.latency_df = pd.concat(
-                [self.latency_df, pd.DataFrame([
-                    {
-                    "timestamp": self.current_timestamp,
-                    "latency": latency,
-                    "machine": self.identity,
-                    }
-                ])], ignore_index=True
-            )
-
-            # TODO: need to record the history of the attempts, currently it only gets the best one 
-            # there might be some machine in the middle that can get both (e.g. an edge server)
-            if self.enforce_time_bound_analysis:
-                need_better_compute, need_better_network = self._check_latency_bound()
-                if need_better_compute:
-                    machine = self._get_machine_with_better_compute()
-                    self.logger.info(f"need better compute; switching to machine {machine}")
-                    self._switch_to_machine(machine)
-                elif need_better_network:
-                    machine = self._get_machine_with_best_network()
-                    self.logger.info(f"need better network; switching to machine {machine}")
-                    self._switch_to_machine(machine)
             
-                if self.plot:
-                    self.plot_latency_history()
-            
-        self.latency_sliding_window = []
-        self.profile.latency = float(latency)
-        self.status_publisher.publish(self.profile)
-
-    def plot_latency_history(self):
-        #https://stackoverflow.com/questions/56170909/seaborn-lineplot-high-cpu-very-slow-compared-to-matplotlib
-        try:
-            sns.lineplot(data = self.latency_df, x = "timestamp", y = "latency", errorbar=None, hue = "machine")
-            # sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local", errorbar=None, color = "green")
-            plt.axhline(y = self.compute_latency_bound, color = 'b', linestyle = '-.')
-            plt.axhline(y = self.compute_latency_bound + self.network_latency_bound, color = 'r', linestyle = '-')
-            # plt.legend(labels=['End-to-end', 'Compute', 'compute bound', 'total bound'])
-            plt.savefig("./plot.png")
-            plt.clf()
-        except Exception as e:
-            self.logger.info(self.latency_df.to_string())
-            self.logger.error(f"plotting error {e}")
-        
-    def parameters_callback(self, params):
-        for param in params:
-            if param._name == "compute_latency_bound":
-                self.compute_latency_bound = param._value
-                self.logger.warn(f"successfully changing {vars(param)} to {self.compute_latency_bound}")
-                plt.clf()
-            if param._name == "network_latency_bound":
-                self.network_latency_bound = param._value
-                self.logger.warn(f"successfully changing {vars(param)} to {self.network_latency_bound}")
-                plt.clf()
-            else:
-                self.logger.warn(f"changing {vars(param)} is not supported yet")
-        return SetParametersResult(successful=True)
-    
     # check if the latency is within the bound using heuristics
     def _check_latency_bound(self):
         
@@ -273,9 +144,18 @@ class SGC_Analyzer(rclpy.node.Node):
         request.state.data = "service" # TODO: currently it's hardcoded
         _ = self.assignment_service_client.call_async(request)
 
+    def get_initial_state_assignment(self):
+        for identity_name in self.config["assignment"]:
+            state_name = self.config["assignment"][identity_name]
+            if state_name not in self.state_dict:
+                self.logger.warn(f"State {state_name} not defined. Not added!")
+                continue 
+            self.assignment_dict[identity_name] = state_name
+        return self.assignment_dict
+    
 def main():
     rclpy.init()
-    node = SGC_Analyzer()
+    node = SGC_Policy_Scheduler()
     rclpy.spin(node)
 
 if __name__ == '__main__':
