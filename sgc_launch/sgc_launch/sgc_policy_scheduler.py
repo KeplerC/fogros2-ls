@@ -61,13 +61,17 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
             self.logger.info(f"already doing profiling, ignore the request")
             response.result.data = self.dump_scheduler_state()
             return response
-        
-        self.is_doing_profiling = True
-        self.active_profiling_result = dict()
+        self._do_profiling()
         response.result.data = self.dump_scheduler_state()
         # this is just in case the scheduler is not aligned with the sgc_node state
-        self._switch_to_machine(self._get_service_machine_name_from_state_assignment(), force = True)
         return response
+    
+    def _do_profiling(self):
+        if self.is_doing_profiling:
+            return 
+        self.is_doing_profiling = True
+        self.active_profiling_result = dict()
+        self._switch_to_machine(self._get_service_machine_name_from_state_assignment(), force = True)
 
     def dump_scheduler_state(self):
         s = ""
@@ -91,13 +95,13 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
             if profile_update.median_latency != -1:
                 is_fulfill_bound = self._check_latency_bound(profile_update)
                 if not is_fulfill_bound:
-                    self._switch_to_machine(self._get_machine_with_better_compute())
+                    self._switch_to_machine(self.get_a_machine_with_better_profile())
             else:
                 self.logger.info(f"median latency is -1, no latency data is collected this window")
                 self.curr_num_waiting_profiles +=1 
                 if self.curr_num_waiting_profiles >= self.max_num_waiting_profiles:
                     self.logger.error(f"no latency data is collected for {self.max_num_waiting_profiles} times, assume {self._get_service_machine_name_from_state_assignment()} is disconnected")
-                    self._switch_to_machine(self._get_machine_with_better_compute())
+                    self._switch_to_machine(self._get_machine_standby())
                     self.curr_num_waiting_profiles = 0
         else: # doing profiling
             self.logger.info(f"[profile-{self._get_service_machine_name_from_state_assignment()}]received an update from {profile_update}")
@@ -108,8 +112,8 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
                     self.logger.error(f"no latency data is collected for {self.max_num_waiting_profiles} times, assume {self._get_service_machine_name_from_state_assignment()} is disconnected")
                 if len(unprofiled_machines) == 0: # profiling is done
                     self.is_doing_profiling = False
-                    self._switch_to_machine(self._get_machine_with_better_compute())
                     self.logger.info(f"profiling is done, switch to {self.current_active_service_machine}")
+                    self._switch_to_machine(self.get_a_machine_with_better_profile())
                 else:
                     self._switch_to_machine(unprofiled_machines[0])
             else:
@@ -167,30 +171,42 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         return list(set(all_machines) - set(profiled_machines))
 
 
-    def get_a_machine_with_working_profile(self):
-        all_passed_machines = self._get_list_of_machine_with_working_profile()
+    def get_a_machine_with_better_profile(self):
+        all_passed_machines = []
+        connected_machines = []
+        for machine in self.active_profiling_result:
+            result = self._check_latency_bound(self.active_profiling_result[machine])
+            if result:
+                all_passed_machines.append(machine)
+            if self.active_profiling_result[machine].median_latency != -1:
+                connected_machines.append(machine)
+
         if len(all_passed_machines) == 0:
-            self.logger.error(f"no machine is passed the latency bound, choosing the one with better compute")
-            all_passed_machines = self.assignment_dict.keys()
-            # TODO: actually implement the function
-            return self._get_machine_with_better_compute()
+            self.logger.error(f"no machine is passed the latency bound")
+            if len(connected_machines) == 0:
+                self.logger.error(f"no machine in profile is marked as connected, running profiling again")
+                self._do_profiling()
+                # since the profiling already switch to the desired service machine
+                return self._get_service_machine_name_from_state_assignment()
+            else:
+                self.logger.error(f"some machines are connected, switch to some connected one")
+                return connected_machines[0]
         elif len(all_passed_machines) > 1:
-            self.logger.info(f"more than one machine is passed the latency bound, choosing the one with better compute")
+            self.logger.info(f"more than one machine is passed the latency bound, switch to the one with better compute")
             # TODO: need a function that has a list
-            return self._get_machine_with_better_compute()
+            return self._get_machine_standby()
         else:
             return all_passed_machines[0]   
 
-    def _get_list_of_machine_with_working_profile(self):
-        # use ping to get the latency
-        passed_machines = []
-        for machine in self.active_profiling_result:
-            self._check_latency_bound(self.active_profiling_result[machine])
-            # self.logger.info(f"latency to {machine} is {latency_dict[machine]}")
-        return passed_machines
 
 
-    def _get_machine_with_better_compute(self):
+    def _get_machine_standby(self):
+        standby_machines = self._get_standby_machine_list_from_state_assignment()
+        if len(standby_machines) == 1:
+            self.logger.info(f"switch to {standby_machines[0]} because it is the only standby machine")
+        return standby_machines[0]
+            
+    def _get_machine_with_better_spect(self):
         # get the best machine based on current spec collected 
         # param = optimize_compute vs optimize 
         # if machine has gpu 
@@ -205,16 +221,8 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         #         return machine
         # return "machine_cloud" #TODO: currently it's hardcoded placeholder
         # current_machine = self._get_service_machine_name_from_state_assignment()
-        standby_machines = self._get_standby_machine_list_from_state_assignment()
-        if len(standby_machines) == 1:
-            self.logger.info(f"switch to {standby_machines[0]} because it is the only standby machine")
-            return standby_machines[0]
-        for machine in standby_machines:
-            # this is a new machine that has not been profiled yet
-            if self.machine_profile_dict[machine].latency == 0:
-                self.logger.info(f"switch to {machine} because it has not been profiled yet")
-                return machine
-            
+        pass 
+
     def _get_machine_with_best_network(self):
         # use ping to get the latency
         latency_dict = dict()
