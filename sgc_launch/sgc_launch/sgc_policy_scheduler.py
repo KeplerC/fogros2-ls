@@ -20,6 +20,10 @@ from rcl_interfaces.msg import SetParametersResult
 class SGC_Policy_Scheduler(rclpy.node.Node):
     def __init__(self):
         super().__init__('sgc_policy_scheduler')
+
+        self.declare_parameter("max_num_waiting_profiles", 5)
+        self.max_num_waiting_profiles = self.get_parameter("max_num_waiting_profiles").value
+
         self.logger = self.get_logger()
 
         self.machine_profile_dict = dict()
@@ -56,6 +60,8 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         self.is_doing_profiling = True
         self.active_profiling_result = dict()
         response.result.data = "start to do profiling"
+        # this is just in case the scheduler is not aligned with the sgc_node state
+        self._switch_to_machine(self._get_service_machine_name_from_state_assignment(), force = True)
         return response
 
     def profile_topic_callback(self, profile_update):
@@ -204,9 +210,9 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
             # self.logger.info(f"latency to {machine} is {latency_dict[machine]}")
         return min(latency_dict, key=latency_dict.get)
 
-    def _switch_to_machine(self, machine_new):
+    def _switch_to_machine(self, machine_new, force = False):
         
-        if machine_new == self._get_service_machine_name_from_state_assignment():
+        if not force and machine_new == self._get_service_machine_name_from_state_assignment():
             self.logger.warn(f"{machine_new} is the same as the current machine, not switching")
             return
         
