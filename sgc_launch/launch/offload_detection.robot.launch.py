@@ -34,16 +34,16 @@ def generate_launch_description():
     )
     launch_description.add_action(time_bound_analyzer)
 
-    time_bound_analyzer = Node(
-        package="sgc_launch",
-        executable="sgc_policy_scheduler", 
-        output="screen",
-        emulate_tty = True,
-        parameters = [
-            {"config_file_name": "offload_detection.yaml"}, 
-        ]
-    )
-    launch_description.add_action(time_bound_analyzer)
+    # time_bound_analyzer = Node(
+    #     package="sgc_launch",
+    #     executable="sgc_policy_scheduler", 
+    #     output="screen",
+    #     emulate_tty = True,
+    #     parameters = [
+    #         {"config_file_name": "offload_detection.yaml"}, 
+    #     ]
+    # )
+    # launch_description.add_action(time_bound_analyzer)
 
     heuristic_pubsub = Node(
         package="sgc_launch",

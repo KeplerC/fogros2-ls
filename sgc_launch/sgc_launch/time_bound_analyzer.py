@@ -102,6 +102,13 @@ class Time_Bound_Analyzer(rclpy.node.Node):
         self.latency_sliding_window = []
         self.status_publisher.publish(self.profile)
 
+        # reset all latencies 
+        self.profile.min_latency = -1.0
+        self.profile.max_latency = -1.0
+        self.profile.mean_latency = -1.0
+        self.profile.median_latency = -1.0
+        self.profile.std_latency = -1.0
+
 def main():
     rclpy.init()
     node = Time_Bound_Analyzer()
