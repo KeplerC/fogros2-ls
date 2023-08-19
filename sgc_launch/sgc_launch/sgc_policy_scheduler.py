@@ -141,29 +141,28 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
 
     # check if the latency is within the bound using heuristics
     def _check_latency_bound(self, profile):
-        fulfill_bound = True
         # max 
         if self.max_latency_bound != -1 and profile.max_latency > self.max_latency_bound:
             self.logger.info(f"max latency {profile.max_latency} is larger than the bound {self.max_latency_bound}")
-            fulfill_bound = False
+            return False
         # mean
         if self.mean_latency_bound != -1 and profile.mean_latency > self.mean_latency_bound:
             self.logger.info(f"mean latency {profile.mean_latency} is larger than the bound {self.mean_latency_bound}")
-            fulfill_bound = False
+            return False
         # median
         if self.median_latency_bound != -1 and profile.median_latency > self.median_latency_bound:
             self.logger.info(f"median latency {profile.median_latency} is larger than the bound {self.median_latency_bound}")
-            fulfill_bound = False
+            return False
         # min
         if self.min_latency_bound != -1 and profile.min_latency < self.min_latency_bound:
             self.logger.info(f"min latency {profile.min_latency} is smaller than the bound {self.min_latency_bound}")
             # TODO: here need to switch to a worse compute machine
-            fulfill_bound = False
+            return False
         # std
         if self.std_latency_bound != -1 and profile.std_latency > self.std_latency_bound:
             self.logger.info(f"std latency {profile.std_latency} is larger than the bound {self.std_latency_bound}")
-            fulfill_bound = False
-        return fulfill_bound 
+            return False
+        return True 
 
     def _get_list_of_machine_not_profiled(self):
         all_machines = self.assignment_dict.keys()
@@ -193,8 +192,9 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
                 self.logger.error(f"some machines are connected, switch to some connected one")
                 return random.choice(connected_machines)
         else:
-            self.logger.info(f"more than one machine is passed the latency bound, switch to one of them")
-            return random.choice(all_passed_machines)  
+            passed_machine = random.choice(all_passed_machines)  
+            self.logger.info(f"machine {passed_machine} is passed the latency bound, switch to one of them")
+            return passed_machine
 
 
 
