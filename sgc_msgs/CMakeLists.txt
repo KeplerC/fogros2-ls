@@ -21,6 +21,7 @@ find_package(std_msgs REQUIRED)
 
 set(srv_files
   "srv/SgcAssignment.srv"
+  "srv/SgcProfiling.srv"
 )
 
 set(msg_files

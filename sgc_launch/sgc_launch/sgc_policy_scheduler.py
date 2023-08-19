@@ -8,6 +8,7 @@ import rclpy
 import rclpy.node
 from sgc_msgs.msg import Profile
 from sgc_msgs.srv import SgcAssignment
+from sgc_msgs.srv import SgcProfling
 from .utils import *
 import psutil
 import matplotlib.pyplot as plt
@@ -34,6 +35,8 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
             self.profile_topic_callback,
             10)
 
+        self.optimize_profiling_server = self.create_service(SgcProfling, 'sgc_profiling_optimizer', self.sgc_profiling_optimizer_callback)
+
         # assignment service client to sgc_node
         self.assignment_service_client = self.create_client(SgcAssignment, 'sgc_assignment_service')
 
@@ -42,6 +45,14 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         self.median_latency_bound = float(self.config["time_bound"]["median_latency"]) if "median_latency" in self.config["time_bound"] else -1
         self.min_latency_bound = float(self.config["time_bound"]["min_latency"]) if "min_latency" in self.config["time_bound"] else -1
         self.std_latency_bound = float(self.config["time_bound"]["std_latency"]) if "std_latency" in self.config["time_bound"] else -1
+
+    def sgc_profiling_optimizer_callback(self, request, response):
+        self._optimize_profiling()
+        response.result.data = "success"
+        return response
+    
+    def _optimize_profiling(self):
+        pass
 
     def _load_config_file(self):
         self.declare_parameter("config_path", "")
