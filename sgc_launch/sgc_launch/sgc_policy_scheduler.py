@@ -16,6 +16,7 @@ import pandas as pd
 import seaborn as sns
 import numpy as np 
 from rcl_interfaces.msg import SetParametersResult
+import random 
 
 class SGC_Policy_Scheduler(rclpy.node.Node):
     def __init__(self):
@@ -115,7 +116,7 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
                     self.logger.info(f"profiling is done, switch to {self.current_active_service_machine}")
                     self._switch_to_machine(self.get_a_machine_with_better_profile())
                 else:
-                    self._switch_to_machine(unprofiled_machines[0])
+                    self._switch_to_machine(random.choice(unprofiled_machines))
             else:
                 self.logger.info(f"median latency is -1, no latency data is collected this window")
                 self.curr_num_waiting_profiles +=1 
@@ -190,21 +191,17 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
                 return self._get_service_machine_name_from_state_assignment()
             else:
                 self.logger.error(f"some machines are connected, switch to some connected one")
-                return connected_machines[0]
-        elif len(all_passed_machines) > 1:
-            self.logger.info(f"more than one machine is passed the latency bound, switch to the one with better compute")
-            # TODO: need a function that has a list
-            return self._get_machine_standby()
+                return random.choice(connected_machines)
         else:
-            return all_passed_machines[0]   
+            self.logger.info(f"more than one machine is passed the latency bound, switch to one of them")
+            return random.choice(all_passed_machines)  
 
 
 
     def _get_machine_standby(self):
-        standby_machines = self._get_standby_machine_list_from_state_assignment()
-        if len(standby_machines) == 1:
-            self.logger.info(f"switch to {standby_machines[0]} because it is the only standby machine")
-        return standby_machines[0]
+        standby_machine = random.choice(self._get_standby_machine_list_from_state_assignment())
+        self.logger.info(f"switch to {standby_machine} because it is the only standby machine")
+        return standby_machine
             
     def _get_machine_with_better_spect(self):
         # get the best machine based on current spec collected 
