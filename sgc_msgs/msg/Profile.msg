@@ -7,8 +7,8 @@ float64 cpu_frequency
 float64 cpu_usage 0         
 bool has_gpu False 
 # runtime stats 
-float64 min_latency 0
-float64 max_latency 0
-float64 mean_latency 0
-float64 median_latency 0
-float64 std_latency 0
+float64 min_latency -1.0
+float64 max_latency -1.0
+float64 mean_latency -1.0
+float64 median_latency -1.0
+float64 std_latency -1.0
