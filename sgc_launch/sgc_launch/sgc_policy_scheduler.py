@@ -102,7 +102,10 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
                 self.curr_num_waiting_profiles +=1 
                 if self.curr_num_waiting_profiles >= self.max_num_waiting_profiles:
                     self.logger.error(f"no latency data is collected for {self.max_num_waiting_profiles} times, assume {self._get_service_machine_name_from_state_assignment()} is disconnected")
-                    self._switch_to_machine(self._get_machine_standby())
+                    # because the service is disconnected, we remove it from the already-profiled list 
+                    # if all the machines are disconnected, we will just rerun the profiling algorithm
+                    del self.active_profiling_result[self._get_service_machine_name_from_state_assignment()]
+                    self._switch_to_machine(self.get_a_machine_with_better_profile())
                     self.curr_num_waiting_profiles = 0
         else: # doing profiling
             self.logger.info(f"[profile-{self._get_service_machine_name_from_state_assignment()}]received an update from {profile_update}")
@@ -141,6 +144,7 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
 
     # check if the latency is within the bound using heuristics
     def _check_latency_bound(self, profile):
+        self.logger.info(f"checking profile {profile}")
         # max 
         if self.max_latency_bound != -1 and profile.max_latency > self.max_latency_bound:
             self.logger.info(f"max latency {profile.max_latency} is larger than the bound {self.max_latency_bound}")
