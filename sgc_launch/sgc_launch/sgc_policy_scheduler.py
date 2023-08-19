@@ -18,6 +18,30 @@ import numpy as np
 from rcl_interfaces.msg import SetParametersResult
 import random 
 
+
+'''
+[] <- collection of benchmarking results 
+
+latency_callback_function(): 
+if latency does not fulfill time bound: 
+		get_a_machine_with_better_profile()
+if network disconnection detected:
+		remove the currently connected service from benchmark result, 
+		get_a_machine_with_better_profile()
+
+
+
+get_a_machine_with_better_profile():
+		pass_bound_checked_machine <- check all benchmarking result see which one fulfill time bound
+		connected_machine <- machines that are connected, may not fulfill timebound
+		
+		if no connected machine: 
+				rerun the benchmark
+		if pass_bound_checked_machine exists:
+				choose random one from list
+		else
+				randomly choose one from connected_machine
+'''
 class SGC_Policy_Scheduler(rclpy.node.Node):
     def __init__(self):
         super().__init__('sgc_policy_scheduler')
