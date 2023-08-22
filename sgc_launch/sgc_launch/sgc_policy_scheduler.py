@@ -50,6 +50,10 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         self.declare_parameter("max_num_waiting_profiles", 5)
         self.max_num_waiting_profiles = self.get_parameter("max_num_waiting_profiles").value
 
+        self.declare_parameter("automatic_switching", True)
+        self.automatic_switching = self.get_parameter("automatic_switching").value
+
+
         self.logger = self.get_logger()
 
         self.machine_profile_dict = dict()
@@ -123,7 +127,11 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
             if profile_update.median_latency != -1:
                 is_fulfill_bound = self._check_latency_bound(profile_update)
                 if not is_fulfill_bound:
-                    self._switch_to_machine(self.get_a_machine_with_better_profile())
+                    self.logger.error(f"latency {profile_update.median_latency} does not fulfill the bound!!!!!")
+                    if self.automatic_switching:
+                        self._switch_to_machine(self.get_a_machine_with_better_profile())
+                    else:
+                        self.logger.error(f"automatic_switching is disabled, not switching")
             else:
                 self.logger.info(f"median latency is -1, no latency data is collected this window")
                 self.curr_num_waiting_profiles +=1 
