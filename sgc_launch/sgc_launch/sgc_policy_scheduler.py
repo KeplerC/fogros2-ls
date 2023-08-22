@@ -18,6 +18,7 @@ import numpy as np
 from rcl_interfaces.msg import SetParametersResult
 import random 
 
+TOTAL_THROW_AWAY_PROFILES = 2
 
 '''
 [] <- collection of benchmarking results 
@@ -81,7 +82,7 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         self.max_num_waiting_profiles = 5 # profiles messages; if received 5 profile messages but still no latency, assume it is disconnected
         self.curr_num_waiting_profiles = 0 # profiles messages
 
-        self.has_skipped_the_first_profile = False
+        self.has_skipped_the_first_x_profile = 0
 
     def sgc_profiling_optimizer_callback(self, request, response):
         if self.is_doing_profiling:
@@ -138,8 +139,9 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         else: # doing profiling
             self.logger.info(f"[profile-{self._get_service_machine_name_from_state_assignment()}]received an update from {profile_update}")
             if profile_update.median_latency != -1 or self.curr_num_waiting_profiles >= self.max_num_waiting_profiles:
-                if not self.has_skipped_the_first_profile:
-                    self.has_skipped_the_first_profile = True
+                if self.has_skipped_the_first_x_profile < TOTAL_THROW_AWAY_PROFILES:
+                    self.logger.info(f"skipping the first {TOTAL_THROW_AWAY_PROFILES} profiles, this is {self.has_skipped_the_first_x_profile}")
+                    self.has_skipped_the_first_x_profile += 1
                     return
                 self.active_profiling_result[self._get_service_machine_name_from_state_assignment()] = profile_update
                 unprofiled_machines = self._get_list_of_machine_not_profiled()
@@ -267,7 +269,7 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
 
     def _switch_to_machine(self, machine_new, force = False):
         
-        self.has_skipped_the_first_profile = False
+        self.has_skipped_the_first_x_profile = 0
         
         if not force and machine_new == self._get_service_machine_name_from_state_assignment():
             self.logger.warn(f"{machine_new} is the same as the current machine, not switching")
