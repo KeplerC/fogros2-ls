@@ -88,6 +88,8 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
 
         self.has_skipped_the_first_x_profile = 0
 
+        self._do_profiling()
+
     def sgc_profiling_optimizer_callback(self, request, response):
         if self.is_doing_profiling:
             self.logger.info(f"already doing profiling, ignore the request")
@@ -284,17 +286,17 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
             return
         
         
-        request = SgcAssignment.Request()
-        request.machine.data = self._get_service_machine_name_from_state_assignment()
-        request.state.data = "standby" 
-        self.assignment_dict[request.machine.data] = "standby" 
-        _ = self.assignment_service_client.call_async(request)
-        
+        request = SgcAssignment.Request()        
         request.machine.data = machine_new
         request.state.data = "service" 
         self.assignment_dict[request.machine.data] = "service" 
         _ = self.assignment_service_client.call_async(request)
 
+        request.machine.data = self._get_service_machine_name_from_state_assignment()
+        request.state.data = "standby" 
+        self.assignment_dict[request.machine.data] = "standby" 
+        _ = self.assignment_service_client.call_async(request)
+        
         self.curr_num_waiting_profiles = 0
 
     def _load_initial_state_assignment(self):
