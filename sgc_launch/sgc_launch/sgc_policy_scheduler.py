@@ -94,6 +94,7 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         # self._do_profiling()
 
     def get_machine_with_better_profile_callback(self, request, response):
+        self._switch_to_machine(self.get_a_machine_with_better_profile())
         response.result.data = self.get_a_machine_with_better_profile()
         return response
     
