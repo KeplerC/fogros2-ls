@@ -287,16 +287,18 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         
         
         request = SgcAssignment.Request()        
-        request.machine.data = machine_new
-        request.state.data = "service" 
-        self.assignment_dict[request.machine.data] = "service" 
-        _ = self.assignment_service_client.call_async(request)
+
 
         request.machine.data = previous_service_machine
         request.state.data = "standby" 
         self.assignment_dict[request.machine.data] = "standby" 
         _ = self.assignment_service_client.call_async(request)
         
+        request.machine.data = machine_new
+        request.state.data = "service" 
+        self.assignment_dict[request.machine.data] = "service" 
+        _ = self.assignment_service_client.call_async(request)
+
         self.curr_num_waiting_profiles = 0
 
     def _load_initial_state_assignment(self):
