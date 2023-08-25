@@ -280,8 +280,8 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
     def _switch_to_machine(self, machine_new, force = False):
         
         self.has_skipped_the_first_x_profile = 0
-        
-        if not force and machine_new == self._get_service_machine_name_from_state_assignment():
+        previous_service_machine = self._get_service_machine_name_from_state_assignment()
+        if not force and machine_new == previous_service_machine:
             self.logger.warn(f"{machine_new} is the same as the current machine, not switching")
             return
         
@@ -292,7 +292,7 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         self.assignment_dict[request.machine.data] = "service" 
         _ = self.assignment_service_client.call_async(request)
 
-        request.machine.data = self._get_service_machine_name_from_state_assignment()
+        request.machine.data = previous_service_machine
         request.state.data = "standby" 
         self.assignment_dict[request.machine.data] = "standby" 
         _ = self.assignment_service_client.call_async(request)
