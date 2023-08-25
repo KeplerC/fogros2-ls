@@ -34,6 +34,22 @@ def generate_launch_description():
     )
     launch_description.add_action(time_bound_analyzer)
 
+    heuristic_pubsub = Node(
+        package="sgc_launch",
+        executable="heuristic_pubsub", 
+        output="screen",
+        emulate_tty = True,
+        parameters = [
+            {"whoami": "machine_local"},
+            {"request_topic_name": "/offload_detection/scheduler_yolo/input/cloud"}, 
+            {"request_topic_type": "sensor_msgs/msg/CompressedImage"}, 
+            {"response_topic_name": "/offload_detection/scheduler_yolo/output/cloud"}, 
+            {"response_topic_type": "sensor_msgs/msg/CompressedImage"}, 
+        ]
+    )
+    launch_description.add_action(heuristic_pubsub)
+
+
     detector = Node(
         package = "offload_detection",
         name = "detector_node_yolo_cloud",

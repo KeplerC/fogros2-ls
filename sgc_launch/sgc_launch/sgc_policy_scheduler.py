@@ -200,6 +200,9 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
     # check if the latency is within the bound using heuristics
     def _check_latency_bound(self, profile):
         # self.logger.info(f"checking profile {profile}")
+        if profile.median_latency == -1:
+            self.logger.info(f"median latency is -1, no latency data is collected this window")
+            return False
         # max 
         if self.max_latency_bound != -1 and profile.max_latency > self.max_latency_bound:
             self.logger.info(f"max latency {profile.max_latency} is larger than the bound {self.max_latency_bound}")
@@ -249,9 +252,9 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
                 return self._get_service_machine_name_from_state_assignment()
             else:
                 self.logger.error(f"some machines are connected, switch to some connected one")
-                return random.choice(connected_machines)
+                return sorted(connected_machines, key=lambda x: self.active_profiling_result[x].median_latency)[0] #random.choice(connected_machines)
         else:
-            passed_machine = random.choice(all_passed_machines)  
+            passed_machine = sorted(all_passed_machines, key=lambda x: self.active_profiling_result[x].median_latency)[0] #random.choice(all_passed_machines)  
             self.logger.info(f"machine {passed_machine} is passed the latency bound, switch to one of them")
             return passed_machine
 
