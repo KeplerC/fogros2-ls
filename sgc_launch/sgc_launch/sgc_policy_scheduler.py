@@ -71,6 +71,9 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
             10)
 
         self.optimize_profiling_server = self.create_service(SgcProfiling, 'sgc_profiling_optimizer', self.sgc_profiling_optimizer_callback)
+        self.ls_active_profile_server = self.create_service(SgcProfiling, 'sgc_profiling_ls', self.ls_active_profile_callback)
+        self.get_machine_with_better_profile_server = self.create_service(SgcProfiling, 'sgc_profiling_get_best', self.get_machine_with_better_profile_callback)
+
 
         # assignment service client to sgc_node
         self.assignment_service_client = self.create_client(SgcAssignment, 'sgc_assignment_service')
@@ -88,7 +91,15 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
 
         self.has_skipped_the_first_x_profile = 0
 
-        self._do_profiling()
+        # self._do_profiling()
+
+    def get_machine_with_better_profile_callback(self, request, response):
+        response.result.data = self.get_a_machine_with_better_profile()
+        return response
+    
+    def ls_active_profile_callback(self, request, response):
+        response.result.data = self.dump_scheduler_state()
+        return response
 
     def sgc_profiling_optimizer_callback(self, request, response):
         if self.is_doing_profiling:
