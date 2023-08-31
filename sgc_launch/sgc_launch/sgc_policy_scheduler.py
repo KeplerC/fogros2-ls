@@ -138,7 +138,10 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         self.machine_profile_dict[profile_update.identity.data] = profile_update
 
         # TODO: we only monitor the state `robot`'s latency for now
-        if profile_update.identity.data != self._get_robot_machine_name_from_state_assignment():
+        # if profile_update.identity.data != self._get_robot_machine_name_from_state_assignment():
+        #     return  
+        if profile_update.identity.data != self._get_service_machine_name_from_state_assignment():
+            self.logger.info(f"received a profile from {profile_update.identity.data}, but the current active service machine is {self._get_service_machine_name_from_state_assignment()}")
             return  
         if not self.is_doing_profiling: # acutal runnning the application
             self.logger.info(f"[{self._get_service_machine_name_from_state_assignment()}]received an update from {profile_update}")
