@@ -15,6 +15,7 @@ import pandas as pd
 import seaborn as sns
 import numpy as np 
 from rcl_interfaces.msg import SetParametersResult
+from sgc_msgs.msg import Latency
 
 # calculate if the latency is within the bound
 # considering: 
@@ -29,8 +30,8 @@ class Time_Bound_Analyzer(rclpy.node.Node):
         self.latency_window = self.get_parameter("latency_window").value
 
         self.latency_topic = self.create_subscription(
-            get_ROS_class("std_msgs/msg/Float64"),
-            "fogros_sgc/latency",
+            Latency,
+            f"fogros_sgc/latency",
             self.latency_topic_callback,
             1)
 
@@ -64,12 +65,17 @@ class Time_Bound_Analyzer(rclpy.node.Node):
         self.create_timer(1, self.update_timer_callback)
         self.create_timer(self.latency_window, self.stats_timer_callback)
 
-        self.latency_sliding_window = []
+        self.latency_sliding_window = dict()
 
     def latency_topic_callback(self, latency_msg):
         # for now, message is defined as a string
         # identity, type, latency 
-        self.latency_sliding_window.append(latency_msg.data)
+        # self.latency_sliding_window.append(latency_msg.data)
+        # self.latency_sliding_window[latency_msg.identity] = latency_msg.latency 
+        if latency_msg.identity not in self.latency_sliding_window:
+            self.latency_sliding_window[latency_msg.identity] = []
+        self.latency_sliding_window[latency_msg.identity].append(latency_msg.latency)
+        print(latency_msg)
 
     def update_timer_callback(self):
         self.current_timestamp = int(time.time()) + 1 # round up
@@ -82,12 +88,14 @@ class Time_Bound_Analyzer(rclpy.node.Node):
         #     [self.latency_df, pd.DataFrame([current_timestamp, None, None])], ignore_index=True
         # )
         
-        if self.latency_sliding_window:
-            mean_latency = sum(self.latency_sliding_window) / len(self.latency_sliding_window)
-            max_latency = max(self.latency_sliding_window)
-            min_latency = min(self.latency_sliding_window)
-            median_latency = np.median(self.latency_sliding_window)
-            std_latency = np.std(self.latency_sliding_window)
+        for identity in self.latency_sliding_window:
+            self.profile.identity.data = identity
+            latency_array = self.latency_sliding_window[identity]
+            mean_latency = sum(latency_array) / len(latency_array)
+            max_latency = max(latency_array)
+            min_latency = min(latency_array)
+            median_latency = np.median(latency_array)
+            std_latency = np.std(latency_array)
             self.get_logger().info("Latency: mean: {:.2f}, max: {:.2f}, min: {:.2f}, median: {:.2f}, std: {:.2f}".format(
                 mean_latency, max_latency, min_latency, median_latency, std_latency
             ))
@@ -96,10 +104,8 @@ class Time_Bound_Analyzer(rclpy.node.Node):
             self.profile.mean_latency = mean_latency
             self.profile.median_latency = median_latency
             self.profile.std_latency = std_latency
-        else:
-            self.get_logger().info("No latency data received")
             
-        self.latency_sliding_window = []
+        self.latency_sliding_window = dict()
         self.status_publisher.publish(self.profile)
 
         # reset all latencies 

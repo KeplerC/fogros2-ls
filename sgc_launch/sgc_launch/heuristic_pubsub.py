@@ -15,7 +15,7 @@ import pandas as pd
 import seaborn as sns
 import numpy as np 
 from rcl_interfaces.msg import SetParametersResult
-
+from sgc_msgs.msg import Latency
 from std_msgs.msg import Float64
 
 class HeuristicPubSub(rclpy.node.Node):
@@ -25,9 +25,6 @@ class HeuristicPubSub(rclpy.node.Node):
 
         self.declare_parameter("whoami", "")
         self.identity = self.get_parameter("whoami").value
-
-        self.declare_parameter("type", "")
-        self.identity = self.get_parameter("type").value
 
         # topic to subscribe to know the start and end of the benchmark
         self.declare_parameter("request_topic_name", "")
@@ -53,7 +50,7 @@ class HeuristicPubSub(rclpy.node.Node):
             self.response_topic_callback,
             1)
         
-        self.latency_publisher = self.create_publisher(get_ROS_class("std_msgs/msg/Float64"), 'fogros_sgc/latency', 10)
+        self.latency_publisher = self.create_publisher(Latency, 'fogros_sgc/latency', 10)
 
 
     
@@ -63,9 +60,10 @@ class HeuristicPubSub(rclpy.node.Node):
 
     # calculate latency based on heuristics
     def response_topic_callback(self, msg):
-        float64 = Float64()
-        float64.data = (time.time() - self.last_request_time)
-        self.latency_publisher.publish(float64)
+        latency = Latency()
+        latency.latency = (time.time() - self.last_request_time)
+        latency.identity = self.identity
+        self.latency_publisher.publish(latency)
         self.logger.info(f"response: {time.time()}, {(time.time() - self.last_request_time)}")
 
 def main():
