@@ -18,7 +18,7 @@ import numpy as np
 from rcl_interfaces.msg import SetParametersResult
 import random 
 
-TOTAL_THROW_AWAY_PROFILES = 2
+TOTAL_THROW_AWAY_PROFILES = 1
 
 '''
 [] <- collection of benchmarking results 
@@ -83,10 +83,11 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         self.median_latency_bound = float(self.config["time_bound"]["median_latency"]) if "median_latency" in self.config["time_bound"] else -1
         self.min_latency_bound = float(self.config["time_bound"]["min_latency"]) if "min_latency" in self.config["time_bound"] else -1
         self.std_latency_bound = float(self.config["time_bound"]["std_latency"]) if "std_latency" in self.config["time_bound"] else -1
-
+        self.smart_bound = float(self.config["time_bound"]["smart_latency"]) if "smart_latency" in self.config["time_bound"] else -1
+        
         self.is_doing_profiling = False  
         self.active_profiling_result = dict() # string to Profile
-        self.max_num_waiting_profiles = 5 # profiles messages; if received 5 profile messages but still no latency, assume it is disconnected
+        # self.max_num_waiting_profiles = 5 # profiles messages; if received 5 profile messages but still no latency, assume it is disconnected
         self.curr_num_waiting_profiles = 0 # profiles messages
 
         self.has_skipped_the_first_x_profile = 0
@@ -117,7 +118,10 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
             return 
         self.is_doing_profiling = True
         self.active_profiling_result = dict()
-        self._switch_to_machine(self._get_service_machine_name_from_state_assignment(), force = True)
+        unprofiled_machine = [item for item in self._get_list_of_machine_not_profiled() if item not in [self._get_service_machine_name_from_state_assignment()]]
+        print(unprofiled_machine[0])
+        self._switch_to_machine(unprofiled_machine[0], force = True)
+        # self._switch_to_machine(self._get_service_machine_name_from_state_assignment(), force = True)
 
     def dump_scheduler_state(self):
         s = ""
@@ -141,23 +145,23 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
             if profile_update.median_latency != -1:
                 is_fulfill_bound = self._check_latency_bound(profile_update)
                 if not is_fulfill_bound:
-                    self.logger.error(f"latency {profile_update.median_latency} does not fulfill the bound!!!!!")
+                    self.logger.error(f"latency {profile_update.max_kmeans_latency} does not fulfill the bound!!!!!")
                     if self.automatic_switching:
                         self._switch_to_machine(self.get_a_machine_with_better_profile())
                     else:
                         self.logger.error(f"automatic_switching is disabled, not switching")
-            else:
-                self.logger.info(f"median latency is -1, no latency data is collected this window")
-                self.curr_num_waiting_profiles +=1 
-                if self.curr_num_waiting_profiles >= self.max_num_waiting_profiles:
-                    self.logger.error(f"no latency data is collected for {self.max_num_waiting_profiles} times, assume {self._get_service_machine_name_from_state_assignment()} is disconnected")
-                    # because the service is disconnected, we remove it from the already-profiled list 
-                    # if all the machines are disconnected, we will just rerun the profiling algorithm
-                    if self._get_service_machine_name_from_state_assignment() in self.active_profiling_result:
-                        self.logger.error(f"remove {self._get_service_machine_name_from_state_assignment()} from the already-profiled list")
-                        del self.active_profiling_result[self._get_service_machine_name_from_state_assignment()]
-                    self._switch_to_machine(self.get_a_machine_with_better_profile())
-                    self.curr_num_waiting_profiles = 0
+            # else:
+            #     self.logger.info(f"median latency is -1, no latency data is collected this window")
+            #     self.curr_num_waiting_profiles +=1 
+            #     if self.curr_num_waiting_profiles >= self.max_num_waiting_profiles:
+            #         self.logger.error(f"no latency data is collected for {self.max_num_waiting_profiles} times, assume {self._get_service_machine_name_from_state_assignment()} is disconnected")
+            #         # because the service is disconnected, we remove it from the already-profiled list 
+            #         # if all the machines are disconnected, we will just rerun the profiling algorithm
+            #         if self._get_service_machine_name_from_state_assignment() in self.active_profiling_result:
+            #             self.logger.error(f"remove {self._get_service_machine_name_from_state_assignment()} from the already-profiled list")
+            #             del self.active_profiling_result[self._get_service_machine_name_from_state_assignment()]
+            #         self._switch_to_machine(self.get_a_machine_with_better_profile())
+            #         self.curr_num_waiting_profiles = 0
         else: # doing profiling
             self.logger.info(f"[profile-{self._get_service_machine_name_from_state_assignment()}]received an update from {profile_update}")
             if profile_update.median_latency != -1 or self.curr_num_waiting_profiles >= self.max_num_waiting_profiles:
@@ -202,6 +206,10 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         # self.logger.info(f"checking profile {profile}")
         if profile.median_latency == -1:
             self.logger.info(f"median latency is -1, no latency data is collected this window")
+            return False
+        # smart
+        if self.smart_bound != -1 and profile.max_kmeans_latency > self.smart_bound:
+            self.logger.info(f"jenks latency {profile.max_kmeans_latency} is larger than the bound {self.smart_bound}")
             return False
         # max 
         if self.max_latency_bound != -1 and profile.max_latency > self.max_latency_bound:
@@ -252,9 +260,11 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
                 return self._get_service_machine_name_from_state_assignment()
             else:
                 self.logger.error(f"some machines are connected, switch to some connected one")
-                return sorted(connected_machines, key=lambda x: self.active_profiling_result[x].median_latency)[0] #random.choice(connected_machines)
+                sorted_machines = sorted(connected_machines, key=lambda x: self.active_profiling_result[x].max_kmeans_latency)
+                return sorted_machines[0] #random.choice(connected_machines)
         else:
-            passed_machine = sorted(all_passed_machines, key=lambda x: self.active_profiling_result[x].median_latency)[0] #random.choice(all_passed_machines)  
+            sorted_machines = sorted(all_passed_machines, key=lambda x: self.active_profiling_result[x].max_kmeans_latency)
+            passed_machine = sorted_machines[0] #random.choice(all_passed_machines)  
             self.logger.info(f"machine {passed_machine} is passed the latency bound, switch to one of them")
             return passed_machine
 

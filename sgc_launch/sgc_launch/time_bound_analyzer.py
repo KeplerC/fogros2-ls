@@ -15,6 +15,8 @@ import pandas as pd
 import seaborn as sns
 import numpy as np 
 from rcl_interfaces.msg import SetParametersResult
+from sklearn.cluster import KMeans
+import jenkspy
 
 # calculate if the latency is within the bound
 # considering: 
@@ -81,7 +83,6 @@ class Time_Bound_Analyzer(rclpy.node.Node):
         # self.latency_df = pd.concat(
         #     [self.latency_df, pd.DataFrame([current_timestamp, None, None])], ignore_index=True
         # )
-        
         if self.latency_sliding_window:
             mean_latency = sum(self.latency_sliding_window) / len(self.latency_sliding_window)
             max_latency = max(self.latency_sliding_window)
@@ -96,6 +97,19 @@ class Time_Bound_Analyzer(rclpy.node.Node):
             self.profile.mean_latency = mean_latency
             self.profile.median_latency = median_latency
             self.profile.std_latency = std_latency
+            
+            gvf = 0.0
+            b = -1.0
+            try:
+                for nclasses in [2, 3, 4, 5, 6]:
+                    gvf, b = goodness_of_variance_fit(np.array(self.latency_sliding_window), nclasses)
+                    if gvf > 0.9:
+                        break
+                    
+                self.profile.max_kmeans_latency = b
+            except:
+                pass
+            
         else:
             self.get_logger().info("No latency data received")
             
@@ -108,6 +122,7 @@ class Time_Bound_Analyzer(rclpy.node.Node):
         self.profile.mean_latency = -1.0
         self.profile.median_latency = -1.0
         self.profile.std_latency = -1.0
+        self.profile.max_kmeans_latency = -1.0
 
 def main():
     rclpy.init()
@@ -116,3 +131,49 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+def goodness_of_variance_fit(array, classes):
+    # get the break points
+    classes = jenkspy.jenks_breaks(array, classes)
+
+    # do the actual classification
+    classified = np.array([classify(i, classes) for i in array])
+    
+    stat = 0
+    
+    separated_arrays = []
+    
+    for i in range(len(classes) - 1):
+        idx = np.where(np.logical_and(array >= classes[i], array < classes[i+1]))
+        separated_arrays.append(array[idx])
+
+    for i in range(len(separated_arrays)-1, -1, -1):
+        if len(separated_arrays[i]) / len(array) > 0.05:
+            stat = np.mean(separated_arrays[i])
+            break
+
+    # max value of zones
+    maxz = max(classified)
+
+    # nested list of zone indices
+    zone_indices = [[idx for idx, val in enumerate(classified) if zone + 1 == val] for zone in range(maxz)]
+
+    # sum of squared deviations from array mean
+    sdam = np.sum((array - array.mean()) ** 2)
+
+    # sorted polygon stats
+    array_sort = [np.array([array[index] for index in zone]) for zone in zone_indices]
+
+    # sum of squared deviations of class means
+    sdcm = sum([np.sum((classified - classified.mean()) ** 2) for classified in array_sort])
+
+    # goodness of variance fit
+    gvf = (sdam - sdcm) / sdam
+
+    return gvf, stat
+
+def classify(value, breaks):
+    for i in range(1, len(breaks)):
+        if value < breaks[i]:
+            return i
+    return len(breaks) - 1

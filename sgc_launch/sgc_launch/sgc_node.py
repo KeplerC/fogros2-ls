@@ -292,11 +292,11 @@ class SGC_Router_Node(rclpy.node.Node):
         current_env["SGC_API_PORT"] = str(self.sgc_router_api_port)
 
         if release_mode:
-            subprocess.call(f"cargo build --release --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
-            subprocess.Popen(f"cargo run --release --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
+            # subprocess.call(f"cargo build --release --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
+            subprocess.Popen(f"{sgc_path}/target/release/gdp-router router", env=current_env,  shell=True)
         else:
-            subprocess.call(f"cargo build --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
-            subprocess.Popen(f"cargo run --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
+            # subprocess.call(f"cargo build --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
+            subprocess.Popen(f"{sgc_path}/target/release/gdp-router router", env=current_env,  shell=True)
         
         if not self.automatic_mode:
             sleep(2)
