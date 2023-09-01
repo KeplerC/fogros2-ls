@@ -18,7 +18,7 @@ import numpy as np
 from rcl_interfaces.msg import SetParametersResult
 import random 
 
-TOTAL_THROW_AWAY_PROFILES = 1
+TOTAL_THROW_AWAY_PROFILES = 30
 
 '''
 [] <- collection of benchmarking results 

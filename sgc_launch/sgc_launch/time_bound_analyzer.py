@@ -40,7 +40,6 @@ class Time_Bound_Analyzer(rclpy.node.Node):
         self.logger = self.get_logger()
 
         self.machine_dict = dict()
-        self.current_timestamp = int(time.time()) + 1
 
         # used for maintaining the current dataframe index        
         self.profile = Profile()
@@ -64,8 +63,7 @@ class Time_Bound_Analyzer(rclpy.node.Node):
 
         self.status_publisher = self.create_publisher(Profile, 'fogros_sgc/profile', 10)
 
-        self.create_timer(1, self.update_timer_callback)
-        self.create_timer(self.latency_window, self.stats_timer_callback)
+        self.create_timer(0.1, self.stats_timer_callback)
 
         self.latency_sliding_window = dict()
 
@@ -76,31 +74,28 @@ class Time_Bound_Analyzer(rclpy.node.Node):
         # self.latency_sliding_window[latency_msg.identity] = latency_msg.latency 
         if latency_msg.identity not in self.latency_sliding_window:
             self.latency_sliding_window[latency_msg.identity] = []
-        self.latency_sliding_window[latency_msg.identity].append(latency_msg.latency)
-        print(latency_msg)
-
-    def update_timer_callback(self):
-        self.current_timestamp = int(time.time()) + 1 # round up
+        self.latency_sliding_window[latency_msg.identity].append((latency_msg.header.stamp, latency_msg.latency))
+        if len(self.latency_sliding_window[latency_msg.identity]) > 5400:
+            del self.latency_sliding_window[latency_msg.identity][:2000]
 
     # run every X second to calculate the profile message and publish to the topic 
     # if it's the controller node (i.e. robot), also check if the latency is within the bound
     def stats_timer_callback(self):
-        latency = 0
         # self.latency_df = pd.concat(
         #     [self.latency_df, pd.DataFrame([current_timestamp, None, None])], ignore_index=True
         # )
         
         for identity in self.latency_sliding_window:
             self.profile.identity.data = identity
-            latency_array = self.latency_sliding_window[identity]
+            latency_array = get_latest_measurements(self.latency_sliding_window[identity], self.latency_window, current_time=self.latency_sliding_window[identity][-1][0])
+            if len(latency_array) == 0:
+                continue
             mean_latency = sum(latency_array) / len(latency_array)
             max_latency = max(latency_array)
             min_latency = min(latency_array)
             median_latency = np.median(latency_array)
             std_latency = np.std(latency_array)
-            self.get_logger().info("Latency: mean: {:.2f}, max: {:.2f}, min: {:.2f}, median: {:.2f}, std: {:.2f}".format(
-                mean_latency, max_latency, min_latency, median_latency, std_latency
-            ))
+
             self.profile.min_latency = min_latency
             self.profile.max_latency = max_latency
             self.profile.mean_latency = mean_latency
@@ -111,7 +106,7 @@ class Time_Bound_Analyzer(rclpy.node.Node):
             b = -1.0
             try:
                 for nclasses in [2, 3, 4, 5, 6]:
-                    gvf, b = goodness_of_variance_fit(np.array(self.latency_sliding_window), nclasses)
+                    gvf, b = goodness_of_variance_fit(np.array(latency_array), nclasses)
                     if gvf > 0.9:
                         break
                     
@@ -119,8 +114,11 @@ class Time_Bound_Analyzer(rclpy.node.Node):
             except:
                 pass
             
-        self.latency_sliding_window = dict()
-        self.status_publisher.publish(self.profile)
+            self.get_logger().info("Latency: mean: {:.2f}, max: {:.2f}, min: {:.2f}, median: {:.2f}, std: {:.2f}, jenks: {:.2f}".format(
+                mean_latency, max_latency, min_latency, median_latency, std_latency, b
+            ))
+            
+            self.status_publisher.publish(self.profile)
 
         # reset all latencies 
         self.profile.min_latency = -1.0
@@ -183,3 +181,25 @@ def classify(value, breaks):
         if value < breaks[i]:
             return i
     return len(breaks) - 1
+
+def get_latest_measurements(data, duration, current_time=None):
+    if current_time is None:
+        current_time = rclpy.clock.Clock().now().to_msg()
+
+    result = []
+
+    duration_nsecs = duration * 1e9
+
+    current_time_nsecs = current_time.sec * 1e9 + current_time.nanosec
+
+    for i in range(len(data) - 1, -1, -1):
+        time, measurement = data[i]
+
+        time_nsecs = time.sec * 1e9 + time.nanosec
+
+        if current_time_nsecs - time_nsecs <= duration_nsecs:
+            result.append(measurement)
+        else:
+            break
+        
+    return result[::-1]
