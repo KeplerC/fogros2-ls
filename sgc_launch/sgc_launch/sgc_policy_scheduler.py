@@ -23,12 +23,35 @@ MAX_ALLOWED_DISCONNCTED_TIME = 10 # ms
 
 
 class SGC_Service:
-    def __init__(self, identity):
+    def __init__(self, identity, logger):
         self.identity = identity
         self.last_profile = None 
-        self.last_profile_time = None
+        self.last_connected_time = None
         self.has_skipped_the_first_x_profile = 0
-
+        self.logger = logger
+    
+    def update(self, profile_update, is_profiling = False):
+        if is_profiling and self.has_skipped_the_first_x_profile < TOTAL_THROW_AWAY_PROFILES:
+            self.has_skipped_the_first_x_profile += 1
+            self.logger.info(f"skipping the first {TOTAL_THROW_AWAY_PROFILES} profiles, this is {self.has_skipped_the_first_x_profile}")            
+        if profile_update.median_latency != -1:
+            self.last_connected_time = time.time()
+        self.last_profile = profile_update
+            
+    def check_timeout(self, is_profiling = False):
+        if self.has_skipped_the_first_x_profile < TOTAL_THROW_AWAY_PROFILES:
+            return False
+        if self.last_connected_time is None:
+            self.logger.info(f"no profile received yet, timeout")
+            return True 
+        else:
+            self.logger.info(f"last connected time is {self.last_connected_time}, current time is {time.time()}, diff is {time.time() - self.last_connected_time}")
+            return time.time() - self.last_connected_time > MAX_ALLOWED_DISCONNCTED_TIME
+        
+    # reset when switched, etc.
+    def reset(self):
+        self.last_connected_time = None
+        self.has_skipped_the_first_x_profile = 0
 
 '''
 [] <- collection of benchmarking results 
@@ -145,16 +168,9 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
 
 
     def profile_topic_callback(self, profile_update):
-        self.service_dict[profile_update.identity.data].last_profile = profile_update
+        self.service_dict[profile_update.identity.data].update(profile_update, self.is_doing_profiling)
 
-        self.logger.info(f"received a profile from {profile_update.identity.data}, and the current active service machine is {self._get_service_machine_name_from_state_assignment()}")
-        if profile_update.median_latency != -1:
-            self.time_dict_of_last_profile[profile_update.identity.data] = time.time()
-
-        current_time = time.time()
-        last_service_time = self.time_dict_of_last_profile.get(self._get_service_machine_name_from_state_assignment(), 0)
-        if current_time - last_service_time > MAX_ALLOWED_DISCONNCTED_TIME :
-            self.logger.error(f"service machine {self._get_service_machine_name_from_state_assignment()} is disconnected for {current_time - last_service_time} seconds, switch to the next machine with better profile")
+        if self.service_dict[profile_update.identity.data].check_timeout(self.is_doing_profiling):
             self._handle_timeout()
             return
 
@@ -184,11 +200,6 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
 
     def _handle_profile_message_at_profiling(self, profile_update):
         self.logger.info(f"[profile-{self._get_service_machine_name_from_state_assignment()}]received an update from {profile_update}")
-
-        if self.has_skipped_the_first_x_profile < TOTAL_THROW_AWAY_PROFILES:
-            self.logger.info(f"skipping the first {TOTAL_THROW_AWAY_PROFILES} profiles, this is {self.has_skipped_the_first_x_profile}")
-            self.has_skipped_the_first_x_profile += 1
-            return
         self.active_profiling_result[self._get_service_machine_name_from_state_assignment()] = profile_update
         self._switch_to_next_unprofiled_machine()
 
@@ -198,7 +209,10 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         if not self._check_latency_bound(profile_update):
             self.logger.error(f"latency {profile_update.median_latency} does not fulfill the bound!!!!!")
             if self.automatic_switching:
-                self._switch_to_machine(self.get_a_machine_with_better_profile())
+                better_profile_machine = self.get_a_machine_with_better_profile()
+                if better_profile_machine is not None:
+                    self.logger.info(f"switching to {better_profile_machine} because it has better profile")
+                    self._switch_to_machine(better_profile_machine)
             else:
                 self.logger.error(f"automatic_switching is disabled, not switching") 
 
@@ -271,7 +285,7 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
                 self.logger.error(f"no machine in profile is marked as connected, running profiling again")
                 self._do_profiling()
                 # since the profiling already switch to the desired service machine
-                return self._get_service_machine_name_from_state_assignment()
+                return None
             else:
                 self.logger.error(f"some machines are connected, switch to some connected one")
                 return sorted(connected_machines, key=lambda x: self.active_profiling_result[x].median_latency)[0] #random.choice(connected_machines)
@@ -330,9 +344,10 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
 
 
     def _switch_to_machine(self, machine_new, force = False):
-        
-        self.has_skipped_the_first_x_profile = 0
         previous_service_machine = self._get_service_machine_name_from_state_assignment()
+        self.service_dict[machine_new].reset()
+        self.service_dict[previous_service_machine].reset()
+
         self.logger.info(f"switching from {previous_service_machine} to {machine_new}")
         if not force and machine_new == previous_service_machine:
             self.logger.warn(f"{machine_new} is the same as the current machine, not switching")
@@ -356,7 +371,7 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         for identity_name in self.config["assignment"]:
             state_name = self.config["assignment"][identity_name]
             self.assignment_dict[identity_name] = state_name
-            self.machine_profile_dict[identity_name] = SGC_Service(identity_name)
+            self.service_dict[identity_name] = SGC_Service(identity_name, self.logger)
         self.logger.info(f"initial assignment is loaded {self.assignment_dict}")
         return self.assignment_dict
 
