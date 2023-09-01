@@ -1,18 +1,15 @@
 use redis::{self, Client, Commands, RedisResult};
 
-
-use utils::app_config::AppConfig;
-const routing_information_base_address:&str =  "3.18.194.127:8002";
-
+use crate::util::get_rib_server_address;
 
 pub fn get_redis_url() -> String {
     // let config = AppConfig::fetch().expect("Failed to fetch config");
-    format!("redis://{}", routing_information_base_address)
+    format!("redis://{}", get_rib_server_address())
 }
 
 pub fn get_redis_address_and_port() -> (String, u16) {
     // let config = AppConfig::fetch().expect("Failed to fetch config");
-    let url = routing_information_base_address;
+    let url = get_rib_server_address();
     let mut split = url.split(":");
     let address = split.next().unwrap().to_string();
     let port = split.next().unwrap().parse::<u16>().unwrap();

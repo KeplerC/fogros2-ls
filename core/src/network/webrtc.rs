@@ -4,10 +4,10 @@ use crate::pipeline::construct_gdp_forward_from_bytes;
 use crate::structs::GDPHeaderInTransit;
 use crate::structs::{generate_random_gdp_name, GDPName};
 use crate::structs::{GDPPacket, GdpAction, Packet};
+use crate::util::get_signaling_server_address;
 
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 const UDP_BUFFER_SIZE: usize = 1748000; // 17kb
-const signaling_server_address: &str = "ws://3.18.194.127:8000";
 
 use async_datachannel::{DataStream, Message, PeerConnection, RtcConfig};
 use async_tungstenite::{tokio::connect_async, tungstenite};
@@ -95,7 +95,7 @@ pub async fn register_webrtc_stream(my_id: &str, peer_to_dial: Option<String>) -
     let (mut tx_sig_inbound, rx_sig_inbound) = mpsc::channel(32);
     let listener = PeerConnection::new(&conf, (tx_sig_outbound, rx_sig_inbound)).unwrap();
 
-    let signaling_uri = signaling_server_address;
+    let signaling_uri = get_signaling_server_address();
     let signaling_uri = format!("{}/{}", signaling_uri, my_id);
     info!("The signaling URI is {}", signaling_uri);
 
