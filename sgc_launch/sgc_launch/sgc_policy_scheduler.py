@@ -18,7 +18,7 @@ import numpy as np
 from rcl_interfaces.msg import SetParametersResult
 import random 
 
-TOTAL_THROW_AWAY_PROFILES = 2
+TOTAL_THROW_AWAY_PROFILES = 6
 MAX_ALLOWED_DISCONNCTED_TIME = 10 # ms
 
 
@@ -36,12 +36,14 @@ class SGC_Service:
             self.last_connected_time = time.time()
         if is_profiling and self.has_skipped_the_first_x_profile < TOTAL_THROW_AWAY_PROFILES:
             self.has_skipped_the_first_x_profile += 1
+            self.last_profile = profile_update
             self.logger.info(f"[{self.identity}]skipping the first {TOTAL_THROW_AWAY_PROFILES} profiles, this is {self.has_skipped_the_first_x_profile}")            
         self.last_profile = profile_update
             
     def check_timeout(self, is_profiling = False):
+        self.logger.info(f"[{self.identity}] checking timeout, is_profiling is {is_profiling}")
         # we allow the first few profiles to be skipped, as long as it does not exceed the connection timeout
-        if self.has_skipped_the_first_x_profile < TOTAL_THROW_AWAY_PROFILES and time.time() - self.last_switched_time > MAX_ALLOWED_DISCONNCTED_TIME:
+        if self.has_skipped_the_first_x_profile < TOTAL_THROW_AWAY_PROFILES:
             return False
         
         # either latency is -1 or the machine is never connected
@@ -51,7 +53,13 @@ class SGC_Service:
         else:
             self.logger.info(f"[{self.identity}] last connected time is {self.last_connected_time}, current time is {time.time()}, diff is {time.time() - self.last_connected_time}")
             return time.time() - self.last_connected_time > MAX_ALLOWED_DISCONNCTED_TIME
-        
+    
+    def has_run_out_of_skipped_profiles(self):
+        return self.has_skipped_the_first_x_profile >= TOTAL_THROW_AWAY_PROFILES
+
+    def increment_skipped_profile(self):
+        self.has_skipped_the_first_x_profile += 1
+
     # reset when switched, etc.
     def reset(self):
         self.last_connected_time = None
@@ -175,22 +183,25 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
 
 
     def profile_topic_callback(self, profile_update):
-        if profile_update.identity.data != self._get_service_machine_name_from_state_assignment():
-            self.logger.info(f"received a profile from {profile_update.identity.data}, but the current active service machine is {self._get_service_machine_name_from_state_assignment()}")
-            if self.service_dict[profile_update.identity.data].check_timeout(self.is_doing_profiling):
+        current_service_machine = self._get_service_machine_name_from_state_assignment()
+        if profile_update.identity.data != current_service_machine:
+            self.logger.info(f"received a profile from {profile_update.identity.data}, but the current active service machine is {current_service_machine}")
+            self.service_dict[current_service_machine].increment_skipped_profile()
+            if self.service_dict[current_service_machine].check_timeout(self.is_doing_profiling):
                 self._handle_timeout()
             return
         
         self.service_dict[profile_update.identity.data].update(profile_update, self.is_doing_profiling)
-
-        if self.service_dict[profile_update.identity.data].check_timeout(self.is_doing_profiling):
+        if self.service_dict[current_service_machine].check_timeout(self.is_doing_profiling):
             self._handle_timeout()
             return
 
-        self.logger.info(f"received a profile from {profile_update.identity.data}, and the current active service machine is {self._get_service_machine_name_from_state_assignment()}")
+        self.logger.info(f"received a profile from {profile_update.identity.data}, and the current active service machine is {current_service_machine}")
 
         if self.is_doing_profiling:
-            self._handle_profile_message_at_profiling(profile_update)
+            if self.service_dict[current_service_machine].has_run_out_of_skipped_profiles():
+                self.logger.info(f"received a profile from {profile_update.identity.data}, and the current active service machine is {current_service_machine}, and the scheduler is doing profiling")
+                self._handle_profile_message_at_profiling(profile_update)
         else:
             self._handle_profile_message_at_running(profile_update)
 
@@ -344,9 +355,12 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         unprofiled_machines = self._get_list_of_machine_not_profiled()
         self.logger.info(f"unprofiled machines are {unprofiled_machines}")
         if len(unprofiled_machines) == 0:
+            self.logger.info(f"unprofiled machines are {unprofiled_machines}")
             self.logger.info(f"all machines are profiled, switch to the best one")
             self.is_doing_profiling = False
-            self._switch_to_machine(self.get_a_machine_with_better_profile())
+            machine_with_better_profile = self.get_a_machine_with_better_profile()
+            if machine_with_better_profile:
+                self._switch_to_machine(machine_with_better_profile)
         else:
             # switch to a random one other than the current service machine
             unprofiled_machines_other_than_current_service = [x for x in unprofiled_machines if x != self._get_service_machine_name_from_state_assignment()]
