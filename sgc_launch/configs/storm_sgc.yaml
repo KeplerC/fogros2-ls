@@ -1,0 +1,49 @@
+
+identifiers: 
+  task: test_cert 
+  
+topics:
+  - topic_name: /tracking_controller/joint_command
+    topic_type: sensor_msgs/msg/JointState
+  - topic_name: /franka/joint_states_throttle
+    topic_type: sensor_msgs/msg/JointState
+  - topic_name: /box_pose
+    topic_type: geometry_msgs/msg/Pose
+  - topic_name: /obs_poses
+    topic_type: geometry_msgs/msg/PoseArray
+  - topic_name: /unity_target
+    topic_type: geometry_msgs/msg/Pose
+  - topic_name: /fogros_sgc/profile
+    topic_type: sgc_msgs/msg/Profile
+  - topic_name: /fogros_sgc/assignment_update
+    topic_type: sgc_msgs/msg/AssignmentUpdate
+
+
+state_machine: 
+  standby: 
+    topics:
+      - /fogros_sgc/profile: pub
+      - /fogros_sgc/assignment_update: sub
+  service: 
+    topics:
+      - /tracking_controller/joint_command: pub
+      - /franka/joint_states_throttle: sub
+      - /box_pose: sub
+      - /obs_poses: sub
+      - /unity_target: sub
+      - /fogros_sgc/profile: pub
+      - /fogros_sgc/assignment_update: sub
+  robot: 
+    topics:
+      - /tracking_controller/joint_command: sub
+      - /franka/joint_states_throttle: pub
+      - /box_pose: pub
+      - /obs_poses: pub
+      - /unity_target: pub
+      - /fogros_sgc/profile: sub
+      - /fogros_sgc/assignment_update: pub
+
+assignment:
+  robot: robot
+  machine_local: service
+  machine_cloud: standby

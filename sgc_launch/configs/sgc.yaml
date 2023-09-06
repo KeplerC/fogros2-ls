@@ -1,0 +1,54 @@
+
+identifiers: 
+  task: test_cert 
+  
+topics:
+  - topic_name: /image
+    topic_type: sensor_msgs/msg/Image
+  - topic_name: /camera_info
+    topic_type: sensor_msgs/msg/CameraInfo
+  - topic_name: /image/h264
+    topic_type: h264_msgs/msg/Packet
+  - topic_name: /tag_detections
+    topic_type: isaac_ros_apriltag_interfaces/msg/AprilTagDetectionArray
+  - topic_name: /fogros_sgc/profile
+    topic_type: sgc_msgs/msg/Profile
+  - topic_name: /fogros_sgc/assignment_update
+    topic_type: sgc_msgs/msg/AssignmentUpdate
+
+
+state_machine: 
+  standby: 
+    topics:
+      - /camera_info: sub
+      - /image/h264: sub
+      - /tag_detections: pub
+      - /fogros_sgc/profile: pub
+      - /fogros_sgc/assignment_update: sub
+  service: 
+    topics:
+      - /camera_info: sub
+      - /image: sub
+      - /tag_detections: pub
+      - /fogros_sgc/profile: pub
+      - /fogros_sgc/assignment_update: sub
+  robot_h264: 
+    topics:
+      - /camera_info: pub
+      - /image/h264: pub
+      - /tag_detections: sub
+      - /fogros_sgc/profile: sub
+      - /fogros_sgc/assignment_update: pub
+  robot: 
+    topics:
+      - /camera_info: pub
+      - /image: pub
+      - /tag_detections: sub
+      - /fogros_sgc/profile: sub
+      - /fogros_sgc/assignment_update: pub
+
+assignment:
+  robot: robot
+  robot_h264: robot_h264
+  machine_edge: service
+  machine_cloud: standby

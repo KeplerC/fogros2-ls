@@ -12,3 +12,4 @@ float64 max_latency -1.0
 float64 mean_latency -1.0
 float64 median_latency -1.0
 float64 std_latency -1.0
+float64 max_kmeans_latency -1.0
