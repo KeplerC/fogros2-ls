@@ -234,7 +234,7 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         if not self._check_latency_bound(profile_update):
             self.logger.error(f"latency {profile_update.median_latency} does not fulfill the bound!!!!!")
             if self.automatic_switching:
-                better_profile_machine = self.get_a_machine_with_better_profile()
+                better_profile_machine = self.get_a_machine_with_better_profile(exclude_list=[self._get_service_machine_name_from_state_assignment()])
                 if better_profile_machine is not None:
                     self.logger.info(f"switching to {better_profile_machine} because it has better profile")
                     self._switch_to_machine(better_profile_machine)
@@ -294,10 +294,12 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         return list(set(all_machines) - set(profiled_machines))
 
 
-    def get_a_machine_with_better_profile(self):
+    def get_a_machine_with_better_profile(self, exclude_list = []):
         all_passed_machines = []
         connected_machines = []
         for machine in self.active_profiling_result:
+            if machine in exclude_list:
+                continue
             result = self._check_latency_bound(self.active_profiling_result[machine])
             if result:
                 all_passed_machines.append(machine)
