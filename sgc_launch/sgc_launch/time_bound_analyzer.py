@@ -63,7 +63,7 @@ class Time_Bound_Analyzer(rclpy.node.Node):
 
         self.status_publisher = self.create_publisher(Profile, 'fogros_sgc/profile', 10)
 
-        self.create_timer(0.1, self.stats_timer_callback)
+        self.create_timer(0.02, self.stats_timer_callback)
 
         self.latency_sliding_window = dict()
 
@@ -102,21 +102,21 @@ class Time_Bound_Analyzer(rclpy.node.Node):
             self.profile.median_latency = median_latency
             self.profile.std_latency = std_latency
             
-            gvf = 0.0
-            b = -1.0
-            try:
-                for nclasses in [2, 3, 4, 5, 6]:
-                    gvf, b = goodness_of_variance_fit(np.array(latency_array), nclasses)
-                    if gvf > 0.9:
-                        break
+            # gvf = 0.0
+            # b = -1.0
+            # try:
+            #     for nclasses in [2, 3, 4]:
+            #         gvf, b = goodness_of_variance_fit(np.array(latency_array), nclasses)
+            #         if gvf > 0.9:
+            #             break
                     
-                self.profile.max_kmeans_latency = b
-            except:
-                pass
+            #     self.profile.max_kmeans_latency = b
+            # except:
+            #     pass
             
-            self.get_logger().info("Latency: mean: {:.2f}, max: {:.2f}, min: {:.2f}, median: {:.2f}, std: {:.2f}, jenks: {:.2f}".format(
-                mean_latency, max_latency, min_latency, median_latency, std_latency, b
-            ))
+            # self.get_logger().info("Latency: mean: {:.2f}, max: {:.2f}, min: {:.2f}, median: {:.2f}, std: {:.2f}, jenks: {:.2f}".format(
+            #     mean_latency, max_latency, min_latency, median_latency, std_latency, b
+            # ))
             
             self.status_publisher.publish(self.profile)
 

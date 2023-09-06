@@ -17,6 +17,7 @@ import seaborn as sns
 import numpy as np 
 from rcl_interfaces.msg import SetParametersResult
 import random 
+import threading
 
 TOTAL_THROW_AWAY_PROFILES = 6
 MAX_ALLOWED_DISCONNCTED_TIME = 10 # ms
@@ -122,7 +123,8 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         self.optimize_profiling_server = self.create_service(SgcProfiling, 'sgc_profiling_optimizer', self.sgc_profiling_optimizer_callback)
         self.ls_active_profile_server = self.create_service(SgcProfiling, 'sgc_profiling_ls', self.ls_active_profile_callback)
         self.get_machine_with_better_profile_server = self.create_service(SgcProfiling, 'sgc_profiling_get_best', self.get_machine_with_better_profile_callback)
-
+        self.parallel_profiling_server = self.create_service(SgcProfiling, 'sgc_parallel_profiling', self.sgc_parallel_profiling_callback)
+        self.get_best_parallel_profiling_server = self.create_service(SgcProfiling, 'sgc_parallel_profiling_get_best', self.sgc_parallel_profiling_best_callback)
 
         # assignment service client to sgc_node
         self.assignment_service_client = self.create_client(SgcAssignment, 'sgc_assignment_service')
@@ -135,6 +137,9 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         self.smart_bound = float(self.config["time_bound"]["smart_latency"]) if "smart_latency" in self.config["time_bound"] else -1
         
         self.is_doing_profiling = False  
+        self.is_doing_parallel_profiling = False
+        self.t0 = 0
+        self.is_parallel_profiling_ready = False
         self.active_profiling_result = dict() # string to Profile
         self.active_profiling_disconnected_list = []
         # self.max_num_waiting_profiles = 5 # profiles messages; if received 5 profile messages but still no latency, assume it is disconnected
@@ -165,14 +170,55 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         # this is just in case the scheduler is not aligned with the sgc_node state
         return response
     
+    def sgc_parallel_profiling_callback(self, request, response):
+        if self.is_doing_parallel_profiling:
+            self.logger.info(f"already doing profiling, ignore the request")
+            response.result.data = self.dump_scheduler_state()
+            return response
+        
+        self._do_parallel_profiling()
+        response.result.data = self.dump_scheduler_state()
+        # this is just in case the scheduler is not aligned with the sgc_node state
+        return response
+    
     def _do_profiling(self):
-        if self.is_doing_profiling:
+        if self.is_doing_profiling or self.is_doing_parallel_profiling:
             return 
         self.is_doing_profiling = True
         self.active_profiling_result = dict()
         self.active_profiling_disconnected_list = []
         # self._switch_to_machine(self._get_service_machine_name_from_state_assignment(), force = True)
         self._switch_to_next_unprofiled_machine()
+        
+    ###
+    def _do_parallel_profiling(self):
+        if self.is_doing_profiling or self.is_doing_parallel_profiling:
+            return
+        self.current_active_service_machine = self._get_service_machine_name_from_state_assignment()
+        self.is_doing_parallel_profiling = True
+        self.is_parallel_profiling_ready = False
+        self.active_profiling_result = dict()
+        
+        self._switch_to_all()
+        
+        self.t0 = time.time()
+        return
+         
+    def sgc_parallel_profiling_best_callback(self, request, response):
+        response.result.data = ""
+        if self.is_parallel_profiling_ready and self.is_doing_parallel_profiling:
+            self.is_doing_parallel_profiling = False
+            machine_with_better_profile = self.get_a_machine_with_better_profile()
+            if machine_with_better_profile is not None:
+                self._switch_off_all_but_one(machine_with_better_profile)
+                self.logger.warn(f"PARALLEL PROFILING CHOSE: {machine_with_better_profile}")
+            else:
+                machine_with_better_profile = self.current_active_service_machine
+                self._switch_off_all_but_one(machine_with_better_profile)
+                
+            response.result.data = machine_with_better_profile
+        return response
+    ###
         
     def dump_scheduler_state(self):
         s = ""
@@ -187,6 +233,22 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
 
 
     def profile_topic_callback(self, profile_update):
+        if self.is_doing_parallel_profiling:
+            self.service_dict[profile_update.identity.data].update(profile_update, self.is_doing_parallel_profiling)
+            self.logger.warn(f"received a profile from {profile_update.identity.data}")
+            # if self.service_dict[current_service_machine].check_timeout(self.is_doing_profiling):
+            #     return
+            
+            if self.service_dict[profile_update.identity.data].has_run_out_of_skipped_profiles():
+                self.logger.warn(f"received a good, after trash, profile from {profile_update.identity.data}")
+                self._handle_profile_message_at_profiling(profile_update)
+                
+                num_servers = len(self._get_nonrobot_machine_list_from_state_assignment())
+                
+                if len(list(self.active_profiling_result.keys())) == num_servers or time.time() - self.t0 > 0.05:
+                    self.is_parallel_profiling_ready = True
+            return
+        
         current_service_machine = self._get_service_machine_name_from_state_assignment()
         if profile_update.identity.data != current_service_machine:
             self.logger.info(f"received a profile from {profile_update.identity.data}, but the current active service machine is {current_service_machine}")
@@ -222,10 +284,15 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
                 del self.active_profiling_result[self._get_service_machine_name_from_state_assignment()]
             better_profile_machine = self.get_a_machine_with_better_profile()
             if better_profile_machine is not None:
-                self._switch_to_machine()
+                self._switch_to_machine(better_profile_machine)
 
     def _handle_profile_message_at_profiling(self, profile_update):
-        self.logger.info(f"[profile-{self._get_service_machine_name_from_state_assignment()}]received an update from {profile_update}")
+        if self.is_doing_parallel_profiling:
+            self.logger.info(f"[profile-{profile_update.identity.data}] received an update from {profile_update}")
+            self.active_profiling_result[profile_update.identity.data] = profile_update
+            
+            return
+        self.logger.info(f"[profile-{self._get_service_machine_name_from_state_assignment()}] received an update from {profile_update}")
         self.active_profiling_result[self._get_service_machine_name_from_state_assignment()] = profile_update
         self._switch_to_next_unprofiled_machine()
 
@@ -312,16 +379,17 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         if len(all_passed_machines) == 0:
             self.logger.error(f"no machine is passed the latency bound")
             if len(connected_machines) == 0:
-                self.logger.error(f"no machine in profile is marked as connected, running profiling again")
-                self._do_profiling()
+                self.logger.error(f"no machine in profile is marked as connected, do nothing")
+                # self.logger.error(f"no machine in profile is marked as connected, running profiling again")
+                # self._do_profiling()
                 # since the profiling already switch to the desired service machine
                 return None
             else:
                 self.logger.error(f"some machines are connected, switch to some connected one")
-                sorted_machines = sorted(connected_machines, key=lambda x: self.active_profiling_result[x].max_kmeans_latency)
+                sorted_machines = sorted(connected_machines, key=lambda x: self.active_profiling_result[x].max_latency)
                 return sorted_machines[0] #random.choice(connected_machines)
         else:
-            sorted_machines = sorted(all_passed_machines, key=lambda x: self.active_profiling_result[x].max_kmeans_latency)
+            sorted_machines = sorted(all_passed_machines, key=lambda x: self.active_profiling_result[x].max_latency)
             passed_machine = sorted_machines[0] #random.choice(all_passed_machines)  
             self.logger.info(f"machine {passed_machine} is passed the latency bound, switch to one of them")
             return passed_machine
@@ -391,7 +459,6 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
 
         request = SgcAssignment.Request()        
 
-
         request.machine.data = previous_service_machine
         request.state.data = "standby" 
         self.assignment_dict[request.machine.data] = "standby" 
@@ -401,6 +468,39 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         request.state.data = "service" 
         self.assignment_dict[request.machine.data] = "service" 
         _ = self.assignment_service_client.call_async(request)
+        
+    def _switch_to_all(self, force = False):
+        previous_service_machine = self._get_service_machine_name_from_state_assignment()
+        for machine in self._get_standby_machine_list_from_state_assignment():
+            if not force and machine == previous_service_machine:
+                self.logger.warn(f"{machine} is the same as the current machine, not switching")
+                continue
+            
+            request = SgcAssignment.Request()        
+
+            request.machine.data = machine
+            request.state.data = "service" 
+            self.assignment_dict[request.machine.data] = "service" 
+            _ = self.assignment_service_client.call_async(request)
+            
+    def _switch_off_all_but_one(self, machine_new):
+        # I think standbys must be called first or else bug, like in switch_to_machine()
+        request = SgcAssignment.Request()
+        for machine in self._get_nonrobot_machine_list_from_state_assignment():
+            if machine_new != machine:
+                request.machine.data = machine
+                request.state.data = "standby" 
+                self.assignment_dict[request.machine.data] = "standby" 
+                _ = self.assignment_service_client.call_async(request) 
+            
+            
+        self.logger.warn(f"{machine_new} is the best")
+        request.machine.data = machine_new
+        request.state.data = "service" 
+        self.assignment_dict[request.machine.data] = "service" 
+        _ = self.assignment_service_client.call_async(request)
+
+
 
     def _load_initial_state_assignment(self):
         for identity_name in self.config["assignment"]:
@@ -426,6 +526,13 @@ class SGC_Policy_Scheduler(rclpy.node.Node):
         standby_machine_list = []
         for identity_name in self.assignment_dict:
             if self.assignment_dict[identity_name] == "standby":
+                standby_machine_list.append(identity_name)
+        return standby_machine_list
+    
+    def _get_nonrobot_machine_list_from_state_assignment(self):
+        standby_machine_list = []
+        for identity_name in self.assignment_dict:
+            if self.assignment_dict[identity_name] != "robot":
                 standby_machine_list.append(identity_name)
         return standby_machine_list
     
