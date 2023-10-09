@@ -1,6 +1,0 @@
-# address of the signaling server of webrtc 
-# the default parameter is provided by a berkeley server
-signaling_server_address = "ws://3.18.194.127:8000"
-# address of the RIB
-# the default parameter is provided by a berkeley server
-routing_information_base_address = "3.18.194.127:8002"

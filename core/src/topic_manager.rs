@@ -57,7 +57,7 @@ pub async fn ros_topic_remote_publisher_handler(
 
     let ros_manager_node_clone = node.clone();
     let _handle = tokio::task::spawn_blocking(move || loop {
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        // std::thread::sleep(std::time::Duration::from_millis(100));
         ros_manager_node_clone
             .clone()
             .lock()
@@ -123,7 +123,7 @@ pub async fn ros_topic_remote_publisher_handler(
                     let ros_handle = tokio::spawn(async move {
                         info!("ROS handling loop has started!");
                         while let Some(packet) = subscriber.next().await {
-                            // info!("received a ROS packet {:?}", packet);
+                            info!("received a ROS packet {:?}", packet);
                             let ros_msg = packet;
                             let packet = construct_gdp_forward_from_bytes(topic_gdp_name, topic_gdp_name, ros_msg );
                             fib_tx.send(packet).expect("send for ros subscriber failure");
@@ -159,12 +159,12 @@ pub async fn ros_topic_remote_subscriber_handler(
 
     let ros_manager_node_clone = node.clone();
     let _handle = tokio::task::spawn_blocking(move || loop {
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        // std::thread::sleep(std::time::Duration::from_millis(100));
         ros_manager_node_clone
             .clone()
             .lock()
             .unwrap()
-            .spin_once(std::time::Duration::from_millis(10));
+            .spin_once(std::time::Duration::from_millis(1));
     });
 
 

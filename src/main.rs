@@ -2,9 +2,6 @@
 
 #[cfg(debug_assertions)] extern crate better_panic;
 
-use std::env;
-use std::fs;
-use utils::app_config::AppConfig;
 use utils::error::Result;
 
 /// The main entry point of the application.
@@ -29,17 +26,17 @@ fn main() -> Result<()> {
     env_logger::init();
 
     // Initialize Configuration
-    let include_path = match env::var_os("SGC_CONFIG") {
-        Some(config_file) => {
-            config_file.into_string().unwrap()
-        }
-        None => "./src/resources/automatic.toml".to_owned(),
-    };
+    // let include_path = match env::var_os("SGC_CONFIG") {
+    //     Some(config_file) => {
+    //         config_file.into_string().unwrap()
+    //     }
+    //     None => "./src/resources/automatic.toml".to_owned(),
+    // };
     
-    println!("Using config file : {}", include_path);
-    let config_contents = fs::read_to_string(include_path).expect("config file not found!");
+    // println!("Using config file : {}", include_path);
+    // let config_contents = fs::read_to_string(include_path).expect("config file not found!");
 
-    AppConfig::init(Some(&config_contents))?;
+    // AppConfig::init(Some(&config_contents))?;
 
     // Match Commands
     cli::cli_match()?;

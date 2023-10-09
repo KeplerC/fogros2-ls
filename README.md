@@ -92,7 +92,7 @@ After the crypto secrets are delivered, go back to project main directory.
 cd ~
 mkdir -p fog_ws/src
 cd ~/fog_ws/src
-git clone https://github.com/data-capsule/fogros2-sgc.git
+git clone https://github.com/KeplerC/fogros2-sgc.git
 
 cd ~/fog_ws 
 colcon build

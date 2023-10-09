@@ -15,79 +15,39 @@ import pandas as pd
 import seaborn as sns
 import numpy as np 
 from rcl_interfaces.msg import SetParametersResult
+from sklearn.cluster import KMeans
+import jenkspy
+from sgc_msgs.msg import Latency
 
-class SGC_Analyzer(rclpy.node.Node):
+# calculate if the latency is within the bound
+# considering: 
+# max latency, average, mean, sigma, min_latency
+class Time_Bound_Analyzer(rclpy.node.Node):
     def __init__(self):
         super().__init__('sgc_time_bound_analyzer')
 
         self.declare_parameter("whoami", "")
         self.identity = self.get_parameter("whoami").value
+        self.declare_parameter("latency_window", 3.0)
+        self.latency_window = self.get_parameter("latency_window").value
 
-        # latency bound in second 
-        self.declare_parameter("network_latency_bound", 0.0)
-        self.network_latency_bound = self.get_parameter("network_latency_bound").value
-        self.declare_parameter("compute_latency_bound", 0.0)
-        self.compute_latency_bound = self.get_parameter("compute_latency_bound").value
-
-        # time bound analysis is only conducted if either network or compute latency bound is set
-        self.enforce_time_bound_analysis = self.network_latency_bound > 0 or self.compute_latency_bound > 0
-
-        # topic to subscribe to know the start and end of the benchmark
-        self.declare_parameter("request_topic_name", "")
-        request_topic = self.get_parameter("request_topic_name").value
-        self.declare_parameter("request_topic_type", "")
-        request_topic_type = self.get_parameter("request_topic_type").value
-        self.declare_parameter("response_topic_name", "")
-        response_topic = self.get_parameter("response_topic_name").value
-        self.declare_parameter("response_topic_type", "")
-        response_topic_type = self.get_parameter("response_topic_type").value
-
-        # whether or not to generate a plot
-        self.declare_parameter("plot", False)
-        self.plot = self.get_parameter("plot").value
+        self.latency_topic = self.create_subscription(
+            Latency,
+            f"fogros_sgc/latency",
+            self.latency_topic_callback,
+            1)
 
         self.logger = self.get_logger()
 
         self.machine_dict = dict()
-        self.current_timestamp = int(time.time()) + 1
-        self.latency_df = pd.DataFrame(
-            [{
-                "timestamp": self.current_timestamp,
-                "latency": np.nan,
-                "machine": "",
-            }]
-        )
-        # used for maintaining the current dataframe index
-        
-        self.request_topic = self.create_subscription(
-            get_ROS_class(request_topic_type),
-            request_topic,
-            self.request_topic_callback,
-            1)
 
-        self.response_topic = self.create_subscription(
-            get_ROS_class(response_topic_type),
-            response_topic,
-            self.response_topic_callback,
-            1)
-        
-        self.status_publisher = self.create_publisher(Profile, 'fogros_sgc/profile', 10)
-
-        # subscribe to the profile topic from other machines (if any)
-        self.status_topic = self.create_subscription(
-            Profile,
-            'fogros_sgc/profile',
-            self.profile_topic_callback,
-            10)
-        self.add_on_set_parameters_callback(self.parameters_callback)
-        
+        # used for maintaining the current dataframe index        
         self.profile = Profile()
         self.profile.identity.data = self.identity
         self.profile.ip_addr.data = get_public_ip_address()
         self.profile.num_cpu_core = psutil.cpu_count()
         freq = [freq.current for freq in psutil.cpu_freq(True)]
         average_freq = sum(freq) / len(freq)
-        self.logger.info(f"{freq}")
         self.profile.cpu_frequency = float(average_freq)
 
         try:
@@ -101,199 +61,145 @@ class SGC_Analyzer(rclpy.node.Node):
             self.has_gpu = False
         self.profile.has_gpu = self.has_gpu
 
-        # assignment service client to sgc_node
-        self.assignment_service_client = self.create_client(SgcAssignment, 'sgc_assignment_service')
+        self.status_publisher = self.create_publisher(Profile, 'fogros_sgc/profile', 10)
 
-        self.machine_dict[self.identity] = self.profile
+        self.create_timer(0.02, self.stats_timer_callback)
 
+        self.latency_sliding_window = dict()
 
-        self.create_timer(1, self.update_timer_callback)
-        self.create_timer(3, self.stats_timer_callback)
-
-        # Current heuristic: 
-        # response_timestamp - the latest previous request timestamp 
-        # this works if the resposne can catch up with the request rate 
-        # if the rate cannot be controlled, simply publish message 
-        # to some topic that indicates the start and end the request 
-        self.last_request_time = None 
-        self.last_response_time = None 
-        self.latency_sliding_window = []
-
-    def request_topic_callback(self, msg):
-        self.last_request_time = time.time()
-        # self.logger.info(f"request: {self.last_request_time}")
-
-    # calculate latency based on heuristics
-    def response_topic_callback(self, msg):
-        self.latency_sliding_window.append((time.time() - self.last_request_time))
-        # self.logger.info(f"response: {time.time()}, {(time.time() - self.last_request_time)}")
-
-    def profile_topic_callback(self, profile_update):
-        self.logger.info(f"received profile update from {profile_update}")
-        if profile_update.identity.data == self.identity:
-            # same update from its own publisher, we are only interested in other machine's
-            # updates 
-            return 
-        self.machine_dict[profile_update.identity.data] = profile_update
-        if profile_update.latency and not (((self.latency_df['timestamp'] == self.current_timestamp) & (self.latency_df['machine'] == profile_update.identity.data)).any()):
-            self.latency_df = pd.concat(
-                    [self.latency_df, pd.DataFrame([
-                        {
-                        "timestamp": self.current_timestamp,
-                        "latency": profile_update.latency,
-                        "machine": profile_update.identity.data,
-                        }
-                    ])], ignore_index=True
-                )
-    
-    def update_timer_callback(self):
-        self.current_timestamp = int(time.time()) + 1 # round up
+    def latency_topic_callback(self, latency_msg):
+        # for now, message is defined as a string
+        # identity, type, latency 
+        # self.latency_sliding_window.append(latency_msg.data)
+        # self.latency_sliding_window[latency_msg.identity] = latency_msg.latency 
+        if latency_msg.identity not in self.latency_sliding_window:
+            self.latency_sliding_window[latency_msg.identity] = []
+        self.latency_sliding_window[latency_msg.identity].append((latency_msg.header.stamp, latency_msg.latency))
+        if len(self.latency_sliding_window[latency_msg.identity]) > 5400:
+            del self.latency_sliding_window[latency_msg.identity][:2000]
 
     # run every X second to calculate the profile message and publish to the topic 
     # if it's the controller node (i.e. robot), also check if the latency is within the bound
     def stats_timer_callback(self):
-        latency = 0
         # self.latency_df = pd.concat(
         #     [self.latency_df, pd.DataFrame([current_timestamp, None, None])], ignore_index=True
         # )
         
-        if self.latency_sliding_window:
-            latency = sum(self.latency_sliding_window) / len(self.latency_sliding_window) # / 1000000000
-            self.get_logger().info(f"Average latency is {latency} out of {sorted(self.latency_sliding_window)}")
-            self.latency_df = pd.concat(
-                [self.latency_df, pd.DataFrame([
-                    {
-                    "timestamp": self.current_timestamp,
-                    "latency": latency,
-                    "machine": self.identity,
-                    }
-                ])], ignore_index=True
-            )
+        for identity in self.latency_sliding_window:
+            self.profile.identity.data = identity
+            latency_array = get_latest_measurements(self.latency_sliding_window[identity], self.latency_window, current_time=self.latency_sliding_window[identity][-1][0])
+            if len(latency_array) == 0:
+                continue
+            mean_latency = sum(latency_array) / len(latency_array)
+            max_latency = max(latency_array)
+            min_latency = min(latency_array)
+            median_latency = np.median(latency_array)
+            std_latency = np.std(latency_array)
 
-            # TODO: need to record the history of the attempts, currently it only gets the best one 
-            # there might be some machine in the middle that can get both (e.g. an edge server)
-            if self.enforce_time_bound_analysis:
-                need_better_compute, need_better_network = self._check_latency_bound()
-                if need_better_compute:
-                    machine = self._get_machine_with_better_compute()
-                    self.logger.info(f"need better compute; switching to machine {machine}")
-                    self._switch_to_machine(machine)
-                elif need_better_network:
-                    machine = self._get_machine_with_best_network()
-                    self.logger.info(f"need better network; switching to machine {machine}")
-                    self._switch_to_machine(machine)
+            self.profile.min_latency = min_latency
+            self.profile.max_latency = max_latency
+            self.profile.mean_latency = mean_latency
+            self.profile.median_latency = median_latency
+            self.profile.std_latency = std_latency
             
-                if self.plot:
-                    self.plot_latency_history()
+            # gvf = 0.0
+            # b = -1.0
+            # try:
+            #     for nclasses in [2, 3, 4]:
+            #         gvf, b = goodness_of_variance_fit(np.array(latency_array), nclasses)
+            #         if gvf > 0.9:
+            #             break
+                    
+            #     self.profile.max_kmeans_latency = b
+            # except:
+            #     pass
             
-        self.latency_sliding_window = []
-        self.profile.latency = float(latency)
-        self.status_publisher.publish(self.profile)
+            # self.get_logger().info("Latency: mean: {:.2f}, max: {:.2f}, min: {:.2f}, median: {:.2f}, std: {:.2f}, jenks: {:.2f}".format(
+            #     mean_latency, max_latency, min_latency, median_latency, std_latency, b
+            # ))
+            
+            self.status_publisher.publish(self.profile)
 
-    def plot_latency_history(self):
-        #https://stackoverflow.com/questions/56170909/seaborn-lineplot-high-cpu-very-slow-compared-to-matplotlib
-        try:
-            sns.lineplot(data = self.latency_df, x = "timestamp", y = "latency", errorbar=None, hue = "machine")
-            # sns.lineplot(data = self.latency_df.set_index("timestamp"), x = "timestamp", y = "machine_local", errorbar=None, color = "green")
-            plt.axhline(y = self.compute_latency_bound, color = 'b', linestyle = '-.')
-            plt.axhline(y = self.compute_latency_bound + self.network_latency_bound, color = 'r', linestyle = '-')
-            # plt.legend(labels=['End-to-end', 'Compute', 'compute bound', 'total bound'])
-            plt.savefig("./plot.png")
-            plt.clf()
-        except Exception as e:
-            self.logger.info(self.latency_df.to_string())
-            self.logger.error(f"plotting error {e}")
-        
-    def parameters_callback(self, params):
-        for param in params:
-            if param._name == "compute_latency_bound":
-                self.compute_latency_bound = param._value
-                self.logger.warn(f"successfully changing {vars(param)} to {self.compute_latency_bound}")
-                plt.clf()
-            if param._name == "network_latency_bound":
-                self.network_latency_bound = param._value
-                self.logger.warn(f"successfully changing {vars(param)} to {self.network_latency_bound}")
-                plt.clf()
-            else:
-                self.logger.warn(f"changing {vars(param)} is not supported yet")
-        return SetParametersResult(successful=True)
-    
-    # check if the latency is within the bound using heuristics
-    def _check_latency_bound(self):
-        
-        # get the latency from the dataframe for the last 15 seconds
-        # replace 0 with NaN so that it doesn't affect the average
-        # https://stackoverflow.com/questions/35608893/calculate-minimums-in-pandas-without-zero-values
-        self.latency_df_of_current_timestamps = self.latency_df[self.latency_df['timestamp'] > self.current_timestamp - 15].replace(0, np.NaN)
-        self.logger.info(f"latency at the past 15 second {self.latency_df_of_current_timestamps.to_string()}")
-
-        # # compute latency is the smallest nonzero latency of the df
-        # compute_latency = self.latency_df_of_current_timestamps[self.latency_df_of_current_timestamps['latency'] > 0]['latency'].min()
-        self.logger.info(f"{self.latency_df_of_current_timestamps.groupby('machine')['latency'].mean()}")
-
-        # compute latency is the average latency of the df of the column that has smallest nonzero average latency
-        compute_latency = self.latency_df_of_current_timestamps.groupby('machine')['latency'].mean().min()
-        self.logger.info(f"compute latency {compute_latency}")
-
-        # end to end latency is the largest latency of the df
-        # end_to_end_latency = self.latency_df_of_current_timestamps['latency'].max()
-        # compute latency is the average latency of the df of the column that has largest average latency
-        end_to_end_latency = self.latency_df_of_current_timestamps.groupby('machine')['latency'].mean().max()
-        self.logger.info(f"end to end latency {end_to_end_latency}")
-
-        network_latency =  end_to_end_latency - compute_latency
-        self.logger.info(f"network latency {network_latency}")
-
-        need_better_compute = compute_latency > self.compute_latency_bound
-        need_better_network = network_latency > self.network_latency_bound
-        self.logger.info(f"need better compute {need_better_compute}, need better network {need_better_network}")
-        return need_better_compute, need_better_network
-    
-    def _get_machine_with_better_compute(self):
-        # get the best machine based on current spec collected 
-        # param = optimize_compute vs optimize 
-        # if machine has gpu 
-        # else cpu_core >= cpu_core:
-        # else cpu_frequency 
-        # for machine in self.machine_dict:
-        #     if self.machine_dict[machine].has_gpu and not self.has_gpu:
-        #         return machine
-        #     if self.machine_dict[machine].num_cpu_core >= self.profile.num_cpu_core:
-        #         return machine
-        #     if self.machine_dict[machine].cpu_frequency >= self.profile.cpu_frequency:
-        #         return machine
-        return "machine_cloud" #TODO: currently it's hardcoded placeholder
-    
-    def _get_machine_with_best_network(self):
-        # use ping to get the latency
-        latency_dict = dict()
-        for machine in self.machine_dict:
-            network_info = ping_host(self.machine_dict[machine].ip_addr.data)
-            self.logger.info(f"latency to {machine} is {network_info}")
-            latency_dict[machine] = network_info["avg_latency"]
-            # self.logger.info(f"latency to {machine} is {latency_dict[machine]}")
-        return min(latency_dict, key=latency_dict.get)
-
-    def _switch_to_machine(self, machine):
-        if machine == self.identity:
-            # no need to switch
-            return
-        
-        request = SgcAssignment.Request()
-        request.machine.data = "machine_local"
-        request.state.data = "standby" # TODO: currently it's hardcoded
-        _ = self.assignment_service_client.call_async(request)
-
-
-        
-        request.machine.data = "machine_cloud"
-        request.state.data = "service" # TODO: currently it's hardcoded
-        _ = self.assignment_service_client.call_async(request)
+        # reset all latencies 
+        self.profile.min_latency = -1.0
+        self.profile.max_latency = -1.0
+        self.profile.mean_latency = -1.0
+        self.profile.median_latency = -1.0
+        self.profile.std_latency = -1.0
+        self.profile.max_kmeans_latency = -1.0
 
 def main():
     rclpy.init()
-    node = SGC_Analyzer()
+    node = Time_Bound_Analyzer()
     rclpy.spin(node)
 
 if __name__ == '__main__':
     main()
+
+def goodness_of_variance_fit(array, classes):
+    # get the break points
+    classes = jenkspy.jenks_breaks(array, classes)
+
+    # do the actual classification
+    classified = np.array([classify(i, classes) for i in array])
+    
+    stat = 0
+    
+    separated_arrays = []
+    
+    for i in range(len(classes) - 1):
+        idx = np.where(np.logical_and(array >= classes[i], array < classes[i+1]))
+        separated_arrays.append(array[idx])
+
+    for i in range(len(separated_arrays)-1, -1, -1):
+        if len(separated_arrays[i]) / len(array) > 0.05:
+            stat = np.mean(separated_arrays[i])
+            break
+
+    # max value of zones
+    maxz = max(classified)
+
+    # nested list of zone indices
+    zone_indices = [[idx for idx, val in enumerate(classified) if zone + 1 == val] for zone in range(maxz)]
+
+    # sum of squared deviations from array mean
+    sdam = np.sum((array - array.mean()) ** 2)
+
+    # sorted polygon stats
+    array_sort = [np.array([array[index] for index in zone]) for zone in zone_indices]
+
+    # sum of squared deviations of class means
+    sdcm = sum([np.sum((classified - classified.mean()) ** 2) for classified in array_sort])
+
+    # goodness of variance fit
+    gvf = (sdam - sdcm) / sdam
+
+    return gvf, stat
+
+def classify(value, breaks):
+    for i in range(1, len(breaks)):
+        if value < breaks[i]:
+            return i
+    return len(breaks) - 1
+
+def get_latest_measurements(data, duration, current_time=None):
+    if current_time is None:
+        current_time = rclpy.clock.Clock().now().to_msg()
+
+    result = []
+
+    duration_nsecs = duration * 1e9
+
+    current_time_nsecs = current_time.sec * 1e9 + current_time.nanosec
+
+    for i in range(len(data) - 1, -1, -1):
+        time, measurement = data[i]
+
+        time_nsecs = time.sec * 1e9 + time.nanosec
+
+        if current_time_nsecs - time_nsecs <= duration_nsecs:
+            result.append(measurement)
+        else:
+            break
+        
+    return result[::-1]

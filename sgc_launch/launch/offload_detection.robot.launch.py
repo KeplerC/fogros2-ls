@@ -24,7 +24,30 @@ def generate_launch_description():
 
     time_bound_analyzer = Node(
         package="sgc_launch",
-        executable="time_bound_analyzer", 
+        executable="sgc_time_analyzer", 
+        output="screen",
+        emulate_tty = True,
+        parameters = [
+            {"whoami": "robot"},
+            {"latency_window" : 3.0}, 
+        ]
+    )
+    launch_description.add_action(time_bound_analyzer)
+
+    # time_bound_analyzer = Node(
+    #     package="sgc_launch",
+    #     executable="sgc_policy_scheduler", 
+    #     output="screen",
+    #     emulate_tty = True,
+    #     parameters = [
+    #         {"config_file_name": "offload_detection.yaml"}, 
+    #     ]
+    # )
+    # launch_description.add_action(time_bound_analyzer)
+
+    heuristic_pubsub = Node(
+        package="sgc_launch",
+        executable="heuristic_pubsub", 
         output="screen",
         emulate_tty = True,
         parameters = [
@@ -33,12 +56,9 @@ def generate_launch_description():
             {"request_topic_type": "sensor_msgs/msg/CompressedImage"}, 
             {"response_topic_name": "/offload_detection/scheduler_yolo/output/cloud"}, 
             {"response_topic_type": "sensor_msgs/msg/CompressedImage"}, 
-            {"network_latency_bound" : 0.4}, 
-            {"compute_latency_bound" : 0.3}, 
-            {"plot" : True}, 
         ]
     )
-    launch_description.add_action(time_bound_analyzer)
+    launch_description.add_action(heuristic_pubsub)
 
     camera = Node(
         package = "offload_detection",

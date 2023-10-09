@@ -118,7 +118,7 @@ class SGC_Swarm:
         # TODO: apply parameter changes 
 
     def _load_addresses(self, config):
-        if "address" not in config:
+        if "addresses" not in config:
             return 
         self.signaling_server_address = config["addresses"]["signaling_server_address"] if "signaling_server_address" in config["addresses"] else self.signaling_server_address
         self.routing_information_base_address = config["addresses"]["routing_information_base_address"] if "routing_information_base_address" in config["addresses"] else self.routing_information_base_address
@@ -269,8 +269,6 @@ class SGC_Router_Node(rclpy.node.Node):
             logger.info(f"crypto file does not exist in {crypto_path}, generating...")
             subprocess.call([f"cd {ws_path}/sgc_launch/share/sgc_launch/configs && ./generate_crypto.sh"],  shell=True)
         
-        # setup the config path
-        current_env["SGC_CONFIG"] = f"{config_path}/automatic.toml"
         # setup crypto path
         current_env["SGC_CRYPTO_PATH"] = f"{crypto_path}"
 
@@ -292,6 +290,9 @@ class SGC_Router_Node(rclpy.node.Node):
             subprocess.call(f"kill {pid}", env=current_env,  shell=True)
         # check if the port exists
         current_env["SGC_API_PORT"] = str(self.sgc_router_api_port)
+        current_env["SGC_SIGNAL_SERVER_ADDRESS"] = self.swarm.signaling_server_address
+        current_env["SGC_RIB_SERVER_ADDRESS"] = self.swarm.routing_information_base_address
+        self.logger.info(f"using signaling server address {self.swarm.signaling_server_address}, routing information base address {self.swarm.routing_information_base_address}")
 
         if release_mode:
             subprocess.call(f"cargo build --release --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
@@ -299,6 +300,13 @@ class SGC_Router_Node(rclpy.node.Node):
         else:
             subprocess.call(f"cargo build --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
             subprocess.Popen(f"cargo run --manifest-path {sgc_path}/Cargo.toml router", env=current_env,  shell=True)
+            
+        # if release_mode:
+        #     # subprocess.call(f"cargo build --release --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
+        #     subprocess.Popen(f"{sgc_path}/target/release/gdp-router router", env=current_env,  shell=True)
+        # else:
+        #     # subprocess.call(f"cargo build --manifest-path {sgc_path}/Cargo.toml", env=current_env,  shell=True)
+        #     subprocess.Popen(f"{sgc_path}/target/release/gdp-router router", env=current_env,  shell=True)
         
         if not self.automatic_mode:
             sleep(2)

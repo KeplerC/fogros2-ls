@@ -21,11 +21,13 @@ find_package(std_msgs REQUIRED)
 
 set(srv_files
   "srv/SgcAssignment.srv"
+  "srv/SgcProfiling.srv"
 )
 
 set(msg_files
   "msg/Profile.msg"
   "msg/AssignmentUpdate.msg"
+  "msg/Latency.msg"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}

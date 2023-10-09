@@ -40,7 +40,9 @@ setup(
     entry_points={
         'console_scripts': [
             'sgc_router = sgc_launch.sgc_node:main',
-            'time_bound_analyzer = sgc_launch.time_bound_analyzer:main'
+            'sgc_time_analyzer = sgc_launch.time_bound_analyzer:main',
+            'sgc_policy_scheduler = sgc_launch.sgc_policy_scheduler:main',
+            'heuristic_pubsub = sgc_launch.heuristic_pubsub:main',
         ],
     },
 )
