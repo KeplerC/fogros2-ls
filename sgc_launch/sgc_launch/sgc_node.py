@@ -262,15 +262,7 @@ class SGC_Router_Node(rclpy.node.Node):
         sgc_path = f"{ws_path}/../src/fogros2-ls"
         # directory of all the config files
         config_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs" if not config_path else config_path
-        # directory of all the crypto files
-        crypto_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs/crypto/test_cert/test_cert-private.pem"
-        # check if the crypto files are generated, if not, generate them
-        if not os.path.isfile(crypto_path):
-            logger.info(f"crypto file does not exist in {crypto_path}, generating...")
-            subprocess.call([f"cd {ws_path}/sgc_launch/share/sgc_launch/configs && ./generate_crypto.sh"],  shell=True)
-        
-        # setup crypto path
-        current_env["SGC_CRYPTO_PATH"] = f"{crypto_path}"
+
 
         if automatic_mode:
             logger.info("automatic discovery is enabled")  
@@ -278,7 +270,17 @@ class SGC_Router_Node(rclpy.node.Node):
             config_path = f"{config_path}/{config_file_name}"
             logger.info(f"using yaml config file {config_path}")
             self.swarm = SGC_Swarm(config_path, whoami, logger, self.sgc_router_api_addr)
-            
+
+        # directory of all the crypto files
+        crypto_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs/crypto/{self.swarm.task_identifier}/{self.swarm.task_identifier}-private.pem"
+
+        # check if the crypto files are generated, if not, generate them
+        if not os.path.isfile(crypto_path):
+            logger.info(f"crypto file does not exist in {crypto_path}, generating...")
+            subprocess.call([f"cd {ws_path}/sgc_launch/share/sgc_launch/configs && ./generate_crypto.sh"],  shell=True)
+        
+        # setup crypto path
+        current_env["SGC_CRYPTO_PATH"] = f"{crypto_path}"
 
         # build and run SGC
         logger.info("building FogROS SGC... It takes longer for first time")

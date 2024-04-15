@@ -2,7 +2,7 @@
 # crypto based as unique identifiers 
 identifiers: 
   # crypto for the task (same for all robots/services on the same task)
-  task: test_cert 
+  task: robot1
   # crypto unique for the robot 
   # note #0 : 
   # for now, it's not bound to an actual certificate yet, name whatever you want
