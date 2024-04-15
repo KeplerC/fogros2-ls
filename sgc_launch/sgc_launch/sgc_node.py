@@ -182,6 +182,9 @@ class SGC_Router_Node(rclpy.node.Node):
         self.declare_parameter("config_path", "")
         self.config_path = self.get_parameter("config_path").value
 
+        self.declare_parameter("crypto_path", "")
+        self.crypto_path = self.get_parameter("crypto_path").value
+
         self.declare_parameter("sgc_base_port", 3000) # port = base_port + ROS_DOMAIN_ID
         self.sgc_base_port = self.get_parameter("sgc_base_port").value
 
@@ -271,9 +274,13 @@ class SGC_Router_Node(rclpy.node.Node):
             logger.info(f"using yaml config file {config_path}")
             self.swarm = SGC_Swarm(config_path, whoami, logger, self.sgc_router_api_addr)
 
-        # directory of all the crypto files
-        crypto_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs/crypto/{self.swarm.task_identifier}/{self.swarm.task_identifier}-private.pem"
-
+        crypto_path = self.crypto_path
+        if not crypto_path:
+            # directory of all the crypto files
+            crypto_path = f"{ws_path}/sgc_launch/share/sgc_launch/configs/crypto/{self.swarm.task_identifier}/{self.swarm.task_identifier}-private.pem"
+        else:
+            crypto_path = f"{crypto_path}/{self.swarm.task_identifier}/{self.swarm.task_identifier}-private.pem"
+            
         # check if the crypto files are generated, if not, generate them
         if not os.path.isfile(crypto_path):
             logger.info(f"crypto file does not exist in {crypto_path}, generating...")
