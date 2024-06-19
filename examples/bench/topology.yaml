@@ -1,0 +1,15 @@
+# switch = "localhost:3003"
+# server = "localhost:3002"
+# client = "localhost:3005"
+
+
+root:
+  address: localhost:3005 # client
+  is_compute: true
+  children:
+  - address: localhost:3003 # switch
+    is_compute: true
+    children:
+    - address: localhost:3002 # server
+      is_compute: true
+

@@ -1,0 +1,38 @@
+identifiers: 
+  task: test_cert 
+
+services:
+  - service_name: /mpt
+    service_type: mpt_interfaces/srv/MPT
+
+state_machine: 
+  standby: 
+  client: 
+    services:
+      - /mpt: client 
+  server: 
+    services:
+      - /mpt: service 
+      
+# EXAMPLE #1: 2 servers and 1 client
+assignment:
+  machine_client: client
+  machine_server: server
+
+topology:
+  machine_client:
+    children: 
+      - machine_server
+
+# EXAMPLE #2: server -> switch -> client 
+# assignment: 
+#   machine_client: client
+#   machine_server: server
+#   machine_switch: standby
+
+# topology:
+#   machine_client:
+#     children: 
+#       - machine_switch:
+#           children: 
+#             - machine_server

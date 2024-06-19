@@ -35,7 +35,7 @@ rm $CERT_NAME-private.pem $CERT_NAME-public.pem $CERT_NAME.csr $CERT_NAME.pem
 for (( i=1; i<=$NUM_KEY; i++ ))
 do 
     export CERT_GDP_NAME=`cat /dev/urandom 2>/dev/null | tr -cd 'a-f0-9' 2>/dev/null | head -c 32`
-    export CERT_NAME=robot$i
+    export CERT_NAME=${CERT_GDP_NAME:0:5} 
     echo "Generating the crypto keys for "$CERT_NAME
     openssl genrsa -out $CERT_NAME-private.pem 2048
     openssl rsa -in $CERT_NAME-private.pem -out $CERT_NAME-public.pem

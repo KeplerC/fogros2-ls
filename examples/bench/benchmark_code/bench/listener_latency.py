@@ -21,7 +21,6 @@ class MinimalSubscriber(Node):
         echo_msg = String()
         # print(f"msg: { [repr(x).decode('utf-8') for x in list(msg.data)]}")
         msg = "".join([chr(i) for i in list(msg.data)])
-        print(msg)
         echo_msg.data = msg[:40]
         self.get_logger().info('I heard: "%s"' % echo_msg.data[:40])
         print("gdp_for_ros.py, process pakcets, ", time.time(), "dispatcher sent")

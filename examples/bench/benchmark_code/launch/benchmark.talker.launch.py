@@ -31,42 +31,33 @@
 # PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION TO PROVIDE
 # MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 
-import socket
-
-import rclpy
-from std_msgs.msg import String
+from launch import LaunchDescription
+from launch_ros.actions import Node
 
 
-def main(args=None):
-    rclpy.init(args=args)
+def generate_launch_description():
+    """Talker example that launches everything locally."""
+    ld = LaunchDescription()
 
-    node = rclpy.create_node("minimal_publisher")
-    publisher = node.create_publisher(String, "chatter", 10)
-    host_name = socket.gethostname()
-    host_ip = socket.gethostbyname(host_name)
+    talker_node = Node(
+        package="bench", executable="talker_latency",
+    )
 
-    msg = String()
-    i = 0
+    ld.add_action(talker_node)
 
-    def timer_callback():
-        nonlocal i
-        msg.data = "Hello World from %s (%s): %d" % (host_name, host_ip, i)
-        i += 1
-        node.get_logger().warning('Publishing: "%s"' % msg.data)
-        publisher.publish(msg)
-
-    timer_period = 0.5  # seconds
-    timer = node.create_timer(timer_period, timer_callback)
-
-    rclpy.spin(node)
-
-    # Destroy the timer attached to the node explicitly
-    # (optional - otherwise it will be done automatically
-    # when the garbage collector destroys the node object)
-    node.destroy_timer(timer)
-    node.destroy_node()
-    rclpy.shutdown()
-
-
-if __name__ == "__main__":
-    main()
+    sgc_router = Node(
+        package="sgc_launch",
+        executable="sgc_router", 
+        output="screen",
+        emulate_tty = True,
+        parameters = [
+            # find and add config file in ./sgc_launhc/configs
+            # or use the `config_path` optional parameter
+            {"config_file_name": "pubsub-benchmark.yaml"}, 
+            {"whoami": "machine_talker"},
+            {"release_mode": True}
+        ]
+    )
+    ld.add_action(sgc_router)
+    
+    return ld

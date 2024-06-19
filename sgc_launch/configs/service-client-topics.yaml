@@ -1,0 +1,52 @@
+identifiers: 
+  task: test_cert 
+
+topics:
+  - topic_name: /chatter
+    topic_type: std_msgs/msg/String
+
+services:
+  - service_name: /add_three_ints
+    service_type: bench_msgs/srv/AddThreeInts
+
+state_machine: 
+  standby: 
+  client: 
+    topics: 
+      - /chatter: sub 
+    services:
+      - /add_three_ints: client 
+  server: 
+    topics: 
+      - /chatter: pub
+    services:
+      - /add_three_ints: service 
+
+
+
+
+# EXAMPLE #1: 2 servers and 1 client
+assignment:
+  machine_client: client
+  machine_server: server
+  machine_switch: server
+
+topology:
+  machine_client:
+    children: 
+      - machine_server
+      - machine_switch
+
+
+# EXAMPLE #2: server -> switch -> client 
+# assignment: 
+#   machine_client: client
+#   machine_server: server
+#   machine_switch: standby
+
+# topology:
+#   machine_client:
+#     children: 
+#       - machine_switch:
+#           children: 
+#             - machine_server

@@ -1,0 +1,24 @@
+identifiers: 
+  task: test_cert 
+  
+services:
+  - service_name: /add_three_ints # STEP1: your service name
+    service_type: bench_msgs/srv/AddThreeInts # STEP2: your service type
+
+state_machine: 
+  standby: 
+  client: 
+    services:
+      - /add_three_ints: client  # STEP3: add_three_ints to your service name 
+  server: 
+    services:
+      - /add_three_ints: service  # STEP4: add_three_ints to your service name 
+
+assignment:
+  machine_client: client
+  machine_server: server
+
+topology:
+  machine_client:
+    children: 
+      - machine_server

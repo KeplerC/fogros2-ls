@@ -12,7 +12,9 @@ identifiers:
   # whoami: machine_talker 
   
 topics:
-  - topic_name: /chatter
+  - topic_name: /benchmark
+    topic_type: sensor_msgs/msg/CompressedImage
+  - topic_name: /benchmark_echo
     topic_type: std_msgs/msg/String
 
 # declare possible states 
@@ -22,10 +24,12 @@ topics:
 state_machine: 
   talker: 
     topics:
-      - /chatter: pub 
+      - /benchmark: pub 
+      - /benchmark_echo: sub 
   listener: 
     topics:
-      - /chatter: sub 
+      - /benchmark: sub 
+      - /benchmark_echo: pub 
 
 # name: state
 # name need to match the identitifer's whoami
